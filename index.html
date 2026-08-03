@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="dark">
-  <meta name="description" content="Calculadora científica con tema astrológico, sin dependencias.">
-  <title>Astrolabio — calculadora sideral</title>
+  <meta name="description" content="Calculadora científica fx con entrada de expresiones, tema astrológico y sin dependencias.">
+  <title>Astrolabio fx — calculadora científica</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -34,72 +34,103 @@
     <p class="flotante flotante--6">c = 299 792 458 m/s</p>
   </div>
 
-  <main class="panel">
+  <main class="fx">
     <header class="cartela">
       <span class="cartela__sello" aria-hidden="true">✦</span>
       <div>
-        <h1 class="cartela__titulo">Astrolabio</h1>
-        <p class="cartela__sub">calculadora sideral</p>
+        <h1 class="cartela__titulo">Astrolabio fx</h1>
+        <p class="cartela__sub">científica · expresiones</p>
       </div>
     </header>
 
-    <div class="pantalla">
-      <div class="pantalla__barra">
-        <span class="insignia" id="indicador-memoria" hidden>M</span>
+    <div class="visor">
+      <div class="visor__barra">
+        <span class="insignia insignia--viva" id="indicador-shift" hidden>SHIFT</span>
+        <span class="insignia insignia--viva" id="indicador-memoria" hidden>M</span>
         <span class="aviso" id="aviso" role="status" aria-live="polite"></span>
         <button type="button" class="insignia insignia--boton" id="indicador-angulo"
-                data-accion="angulo">RAD</button>
+                data-accion="angulo" aria-label="Unidad de ángulo. Pulsa para cambiar entre grados, radianes y gradianes">DEG</button>
         <button type="button" class="insignia insignia--boton" data-accion="copiar"
                 aria-label="Copiar el resultado al portapapeles">Copiar</button>
       </div>
-      <div class="pantalla__contexto" id="contexto"></div>
-      <output class="pantalla__actual" id="actual" role="status" aria-live="polite" aria-atomic="true">0</output>
+
+      <div class="visor__entrada" id="entrada" aria-label="Expresión en edición"></div>
+      <output class="visor__resultado" id="resultado" role="status" aria-live="polite" aria-atomic="true"></output>
     </div>
 
-    <div class="teclado teclado--ciencia">
-      <button type="button" class="tecla tecla--ciencia" data-funcion="sin" aria-label="Seno">sin</button>
-      <button type="button" class="tecla tecla--ciencia" data-funcion="cos" aria-label="Coseno">cos</button>
-      <button type="button" class="tecla tecla--ciencia" data-funcion="tan" aria-label="Tangente">tan</button>
-      <button type="button" class="tecla tecla--ciencia" data-funcion="ln" aria-label="Logaritmo natural">ln</button>
-      <button type="button" class="tecla tecla--ciencia" data-funcion="log" aria-label="Logaritmo base 10">log</button>
+    <div class="teclado teclado--funciones">
+      <button type="button" class="tecla tecla--control" data-accion="shift" aria-label="Segunda función">SHIFT</button>
+      <button type="button" class="tecla tecla--control" data-accion="angulo" aria-label="Cambiar unidad de ángulo">ANG</button>
+      <button type="button" class="tecla tecla--control" data-accion="arriba" aria-label="Expresión anterior del historial">▲</button>
+      <button type="button" class="tecla tecla--control" data-accion="abajo" aria-label="Expresión siguiente del historial">▼</button>
+      <button type="button" class="tecla tecla--control" data-accion="izquierda" aria-label="Mover el cursor a la izquierda">◀</button>
+      <button type="button" class="tecla tecla--control" data-accion="derecha" aria-label="Mover el cursor a la derecha">▶</button>
 
-      <button type="button" class="tecla tecla--ciencia" data-funcion="cuadrado" aria-label="Elevar al cuadrado">x²</button>
-      <button type="button" class="tecla tecla--ciencia" data-operador="^" aria-label="Elevar a la potencia">xʸ</button>
-      <button type="button" class="tecla tecla--ciencia" data-funcion="raiz" aria-label="Raíz cuadrada">√</button>
-      <button type="button" class="tecla tecla--ciencia" data-funcion="inverso" aria-label="Inverso, uno partido por x">1/x</button>
-      <button type="button" class="tecla tecla--ciencia" data-funcion="factorial" aria-label="Factorial">n!</button>
+      <button type="button" class="tecla tecla--fn" data-ins="⁻¹" data-ins-shift="abs(" aria-label="Inverso. Con SHIFT, valor absoluto">
+        <span class="tecla__alt" aria-hidden="true">abs</span><span>x⁻¹</span>
+      </button>
+      <button type="button" class="tecla tecla--fn" data-ins="²" aria-label="Elevar al cuadrado">x²</button>
+      <button type="button" class="tecla tecla--fn" data-ins="³" aria-label="Elevar al cubo">x³</button>
+      <button type="button" class="tecla tecla--fn" data-ins="^" aria-label="Elevar a la potencia">xʸ</button>
+      <button type="button" class="tecla tecla--fn" data-ins="√" aria-label="Raíz cuadrada">√</button>
+      <button type="button" class="tecla tecla--fn" data-ins="∛" aria-label="Raíz cúbica">∛</button>
 
-      <button type="button" class="tecla tecla--ciencia" data-constante="pi" aria-label="Constante pi">π</button>
-      <button type="button" class="tecla tecla--ciencia" data-constante="e" aria-label="Constante e de Euler">e</button>
-      <button type="button" class="tecla tecla--memoria" data-memoria="limpiar" aria-label="Borrar la memoria">MC</button>
-      <button type="button" class="tecla tecla--memoria" data-memoria="recuperar" aria-label="Recuperar la memoria">MR</button>
-      <button type="button" class="tecla tecla--memoria" data-memoria="sumar" aria-label="Sumar a la memoria">M+</button>
+      <button type="button" class="tecla tecla--fn" data-ins="sin(" data-ins-shift="sin⁻¹(" aria-label="Seno. Con SHIFT, arcoseno">
+        <span class="tecla__alt" aria-hidden="true">sin⁻¹</span><span>sin</span>
+      </button>
+      <button type="button" class="tecla tecla--fn" data-ins="cos(" data-ins-shift="cos⁻¹(" aria-label="Coseno. Con SHIFT, arcocoseno">
+        <span class="tecla__alt" aria-hidden="true">cos⁻¹</span><span>cos</span>
+      </button>
+      <button type="button" class="tecla tecla--fn" data-ins="tan(" data-ins-shift="tan⁻¹(" aria-label="Tangente. Con SHIFT, arcotangente">
+        <span class="tecla__alt" aria-hidden="true">tan⁻¹</span><span>tan</span>
+      </button>
+      <button type="button" class="tecla tecla--fn" data-ins="ln(" data-ins-shift="e^(" aria-label="Logaritmo natural. Con SHIFT, e elevado a x">
+        <span class="tecla__alt" aria-hidden="true">eˣ</span><span>ln</span>
+      </button>
+      <button type="button" class="tecla tecla--fn" data-ins="log(" data-ins-shift="10^(" aria-label="Logaritmo base 10. Con SHIFT, diez elevado a x">
+        <span class="tecla__alt" aria-hidden="true">10ˣ</span><span>log</span>
+      </button>
+      <button type="button" class="tecla tecla--fn" data-ins="π" data-ins-shift="e" aria-label="Constante pi. Con SHIFT, constante e">
+        <span class="tecla__alt" aria-hidden="true">e</span><span>π</span>
+      </button>
+
+      <button type="button" class="tecla tecla--fn" data-ins="(" aria-label="Abrir paréntesis">(</button>
+      <button type="button" class="tecla tecla--fn" data-ins=")" aria-label="Cerrar paréntesis">)</button>
+      <button type="button" class="tecla tecla--fn" data-ins="!" aria-label="Factorial">n!</button>
+      <button type="button" class="tecla tecla--fn" data-ins="%" aria-label="Porcentaje">%</button>
+      <button type="button" class="tecla tecla--fn" data-ins="E" aria-label="Notación de exponente, por diez elevado a">EXP</button>
+      <button type="button" class="tecla tecla--fn" data-ins="Ans" aria-label="Resultado anterior">Ans</button>
     </div>
 
-    <div class="teclado teclado--basico">
-      <button type="button" class="tecla tecla--accion" data-accion="limpiar" aria-label="Limpiar todo">AC</button>
-      <button type="button" class="tecla tecla--accion" data-accion="borrar" aria-label="Borrar el último dígito">⌫</button>
-      <button type="button" class="tecla tecla--accion" data-accion="porcentaje" aria-label="Porcentaje">%</button>
-      <button type="button" class="tecla tecla--operador" data-operador="/" aria-label="Dividir">÷</button>
+    <div class="teclado teclado--memoria">
+      <button type="button" class="tecla tecla--mem" data-mem="sumar" aria-label="Sumar a la memoria">M+</button>
+      <button type="button" class="tecla tecla--mem" data-mem="restar" aria-label="Restar de la memoria">M−</button>
+      <button type="button" class="tecla tecla--mem" data-mem="recuperar" aria-label="Insertar la memoria">MR</button>
+      <button type="button" class="tecla tecla--mem" data-mem="limpiar" aria-label="Borrar la memoria">MC</button>
+    </div>
 
-      <button type="button" class="tecla" data-numero="7">7</button>
-      <button type="button" class="tecla" data-numero="8">8</button>
-      <button type="button" class="tecla" data-numero="9">9</button>
-      <button type="button" class="tecla tecla--operador" data-operador="*" aria-label="Multiplicar">×</button>
+    <div class="teclado teclado--numerico">
+      <button type="button" class="tecla" data-ins="7">7</button>
+      <button type="button" class="tecla" data-ins="8">8</button>
+      <button type="button" class="tecla" data-ins="9">9</button>
+      <button type="button" class="tecla tecla--borrar" data-accion="del" aria-label="Borrar lo anterior al cursor">DEL</button>
+      <button type="button" class="tecla tecla--borrar" data-accion="ac" aria-label="Limpiar todo">AC</button>
 
-      <button type="button" class="tecla" data-numero="4">4</button>
-      <button type="button" class="tecla" data-numero="5">5</button>
-      <button type="button" class="tecla" data-numero="6">6</button>
-      <button type="button" class="tecla tecla--operador" data-operador="-" aria-label="Restar">−</button>
+      <button type="button" class="tecla" data-ins="4">4</button>
+      <button type="button" class="tecla" data-ins="5">5</button>
+      <button type="button" class="tecla" data-ins="6">6</button>
+      <button type="button" class="tecla tecla--op" data-ins="×" aria-label="Multiplicar">×</button>
+      <button type="button" class="tecla tecla--op" data-ins="÷" aria-label="Dividir">÷</button>
 
-      <button type="button" class="tecla" data-numero="1">1</button>
-      <button type="button" class="tecla" data-numero="2">2</button>
-      <button type="button" class="tecla" data-numero="3">3</button>
-      <button type="button" class="tecla tecla--operador" data-operador="+" aria-label="Sumar">+</button>
+      <button type="button" class="tecla" data-ins="1">1</button>
+      <button type="button" class="tecla" data-ins="2">2</button>
+      <button type="button" class="tecla" data-ins="3">3</button>
+      <button type="button" class="tecla tecla--op" data-ins="+" aria-label="Sumar">+</button>
+      <button type="button" class="tecla tecla--op" data-ins="-" aria-label="Restar">−</button>
 
-      <button type="button" class="tecla tecla--ciencia" data-accion="signo" aria-label="Cambiar de signo">±</button>
-      <button type="button" class="tecla" data-numero="0">0</button>
-      <button type="button" class="tecla" data-accion="punto" aria-label="Coma decimal">,</button>
+      <button type="button" class="tecla" data-ins="0">0</button>
+      <button type="button" class="tecla" data-ins="." aria-label="Coma decimal">,</button>
+      <button type="button" class="tecla" data-ins="-" aria-label="Signo negativo">(−)</button>
       <button type="button" class="tecla tecla--igual" data-accion="igual" aria-label="Calcular el resultado">=</button>
     </div>
 
@@ -113,12 +144,13 @@
     </section>
 
     <footer class="efemerides">
-      <span>π = 3,14159265359</span>
-      <span>e = 2,71828182846</span>
-      <span>φ = 1,61803398875</span>
+      <span>π = 3,141592654</span>
+      <span>e = 2,718281828</span>
+      <span>φ = 1,618033989</span>
     </footer>
   </main>
 
+  <script src="src/expresion.js"></script>
   <script src="src/calculadora.js"></script>
   <script src="src/ui.js"></script>
 </body>

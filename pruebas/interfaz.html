@@ -10,18 +10,17 @@
   <h1>Pruebas de interfaz</h1>
   <p class="nota">
     Cargan <code>index.html</code> en un iframe y lo manejan como lo haría una persona:
-    pulsando teclas y leyendo la pantalla. Comprueban además accesibilidad, contraste
+    pulsando teclas y leyendo el visor. Comprueban además accesibilidad, contraste
     real y maquetación. <strong>Requieren un servidor</strong> (el navegador bloquea el
-    acceso entre archivos <code>file://</code>): desde la raíz del proyecto, cualquier
-    servidor estático sirve, p. ej. <code>python -m http.server</code>, y luego abre
-    <code>/pruebas/interfaz.html</code>.
+    acceso entre archivos <code>file://</code>): desde la raíz del proyecto, p. ej.
+    <code>python -m http.server</code>, y luego abre <code>/pruebas/interfaz.html</code>.
   </p>
   <pre id="salida">ejecutando…</pre>
 
-  <iframe class="marco-app" id="app" src="../index.html" width="440" height="900"></iframe>
-  <iframe class="marco-app vp" data-w="320" src="../index.html" width="320" height="900"></iframe>
-  <iframe class="marco-app vp" data-w="360" src="../index.html" width="360" height="900"></iframe>
-  <iframe class="marco-app vp" data-w="414" src="../index.html" width="414" height="900"></iframe>
+  <iframe class="marco-app" id="app" src="../index.html" width="460" height="1000"></iframe>
+  <iframe class="marco-app vp" data-w="320" src="../index.html" width="320" height="1000"></iframe>
+  <iframe class="marco-app vp" data-w="360" src="../index.html" width="360" height="1000"></iframe>
+  <iframe class="marco-app vp" data-w="414" src="../index.html" width="414" height="1000"></iframe>
 
   <script src="marco.js"></script>
   <script>
@@ -30,12 +29,7 @@
     window.addEventListener("load", () => {
       const marco = document.getElementById("app");
       let d, w;
-      try {
-        d = marco.contentDocument;
-        w = marco.contentWindow;
-      } catch (e) {
-        d = null;
-      }
+      try { d = marco.contentDocument; w = marco.contentWindow; } catch (e) { d = null; }
 
       if (!d) {
         P.afirmar("acceso al iframe", false,
@@ -44,114 +38,151 @@
         return;
       }
 
-      const pantalla = () => d.getElementById("actual").textContent;
-      const contexto = () => d.getElementById("contexto").textContent;
+      const entrada = () => d.getElementById("entrada").textContent;
+      const resultado = () => d.getElementById("resultado").textContent;
 
       const buscar = (sel) => {
         const el = d.querySelector(sel);
         if (!el) throw new Error("no existe " + sel);
         return el;
       };
-      const num = (n) => buscar(`[data-numero="${n}"]`).click();
-      const op = (o) => buscar(`[data-operador="${o}"]`).click();
-      const fn = (f) => buscar(`[data-funcion="${f}"]`).click();
-      const cte = (k) => buscar(`[data-constante="${k}"]`).click();
-      const mem = (m) => buscar(`[data-memoria="${m}"]`).click();
+      const ins = (t) => buscar(`[data-ins="${t}"]`).click();
       const acc = (a) => buscar(`[data-accion="${a}"]`).click();
-      const escribir = (t) => String(t).split("").forEach((ch) => (ch === "," ? acc("punto") : num(ch)));
-      const teclear = (key) =>
-        d.dispatchEvent(new w.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+      const mem = (m) => buscar(`[data-mem="${m}"]`).click();
+      const escribir = (texto) => String(texto).split("").forEach((ch) => ins(ch));
+      const teclear = (key, extra) =>
+        d.dispatchEvent(new w.KeyboardEvent("keydown",
+          Object.assign({ key, bubbles: true, cancelable: true }, extra || {})));
 
       function caso(nombre, pasos, esperado, leer) {
-        acc("limpiar");
+        acc("ac");
         let obtenido;
-        try { pasos(); obtenido = (leer || pantalla)(); }
+        try { pasos(); obtenido = (leer || resultado)(); }
         catch (e) { obtenido = "EXCEPCIÓN: " + e.message; }
         P.comparar(nombre, obtenido, esperado);
       }
 
       P.seccion("CARGA");
-      P.afirmar("el núcleo se expone", typeof w.Calculadora === "object", "window.Calculadora ausente");
-      P.afirmar("la interfaz arrancó", pantalla() === "0", "pantalla inicial: " + pantalla());
+      P.afirmar("el motor de expresiones se expone", typeof w.Expresion === "object", "falta window.Expresion");
+      P.afirmar("el controlador se expone", typeof w.Calculadora === "object", "falta window.Calculadora");
+      P.afirmar("el visor arranca vacío", entrada() === "" && resultado() === "",
+                `entrada="${entrada()}" resultado="${resultado()}"`);
+      P.afirmar("hay un cursor pintado", d.querySelector("#entrada .cursor") !== null, "sin cursor");
 
-      P.seccion("PULSANDO TECLAS");
-      caso("7 × 8 =", () => { num("7"); op("*"); num("8"); acc("igual"); }, "56");
-      caso("2 + 3 + 4 = encadenado", () => {
-        num("2"); op("+"); num("3"); op("+"); num("4"); acc("igual");
-      }, "9");
-      caso("0,1 + 0,2 =", () => { escribir("0,1"); op("+"); escribir("0,2"); acc("igual"); }, "0,3");
-      caso("5 ÷ 0 =", () => { num("5"); op("/"); num("0"); acc("igual"); }, "Error");
-      caso("2 ^ 10 =", () => { num("2"); op("^"); escribir("10"); acc("igual"); }, "1024");
-      caso("√81", () => { escribir("81"); fn("raiz"); }, "9");
-      caso("5!", () => { num("5"); fn("factorial"); }, "120");
-      caso("1/4", () => { num("4"); fn("inverso"); }, "0,25");
-      caso("π", () => cte("pi"), "3,14159265359");
-      caso("±", () => { num("7"); acc("signo"); }, "-7");
-      caso("100 + 10 % =", () => {
-        escribir("100"); op("+"); escribir("10"); acc("porcentaje"); acc("igual");
-      }, "110");
-      caso("entrada de 18 dígitos no se reescribe", () => escribir("123456789012345678"), "1234567890123456");
-      caso("contexto tras operador", () => { escribir("12"); op("+"); }, "12 +", contexto);
+      P.seccion("ESCRIBIR Y RESOLVER");
+      caso("2+3×4 respeta la precedencia", () => { escribir("2"); ins("+"); escribir("3"); ins("×"); escribir("4"); acc("igual"); }, "14");
+      caso("con paréntesis", () => { ins("("); escribir("2"); ins("+"); escribir("3"); ins(")"); ins("×"); escribir("4"); acc("igual"); }, "20");
+      caso("la expresión queda en el visor", () => { escribir("12"); ins("+"); escribir("3"); }, "12+3", entrada);
+      caso("potencia", () => { escribir("2"); ins("^"); escribir("10"); acc("igual"); }, "1024");
+      caso("seno en grados", () => { ins("sin("); escribir("30"); acc("igual"); }, "0,5");
+      caso("factorial", () => { escribir("5"); ins("!"); acc("igual"); }, "120");
+      caso("porcentaje relativo", () => { escribir("100"); ins("+"); escribir("10"); ins("%"); acc("igual"); }, "110");
+      caso("EXP escribe notación de exponente", () => { escribir("2"); ins("E"); escribir("3"); acc("igual"); }, "2000");
+      caso("la coma decimal se muestra como coma", () => { escribir("1"); ins("."); escribir("5"); }, "1,5", entrada);
+      caso("error de sintaxis", () => { escribir("2"); ins("+"); acc("igual"); }, "Syntax ERROR");
+      caso("error matemático", () => { escribir("5"); ins("÷"); escribir("0"); acc("igual"); }, "Math ERROR");
 
-      P.seccion("TECLADO");
-      caso("dígitos y Enter", () => { teclear("7"); teclear("*"); teclear("8"); teclear("Enter"); }, "56");
-      caso("coma", () => { teclear("1"); teclear(","); teclear("5"); }, "1,5");
-      caso("Escape limpia", () => { teclear("9"); teclear("9"); teclear("Escape"); }, "0");
-      caso("Backspace borra", () => { teclear("1"); teclear("2"); teclear("3"); teclear("Backspace"); }, "12");
-      caso("p inserta π", () => teclear("p"), "3,14159265359");
-      caso("f calcula el factorial", () => { teclear("5"); teclear("f"); }, "120");
-      caso("^ eleva a potencia", () => { teclear("2"); teclear("^"); teclear("8"); teclear("Enter"); }, "256");
-      caso("Ctrl+tecla se ignora", () => {
-        teclear("5");
-        d.dispatchEvent(new w.KeyboardEvent("keydown", { key: "c", ctrlKey: true, bubbles: true }));
-      }, "5");
+      P.seccion("VISTA PREVIA EN VIVO");
+      caso("mientras escribes muestra el valor", () => { escribir("2"); ins("+"); escribir("3"); }, "= 5");
+      P.afirmar("la vista previa se marca en el visor",
+        d.querySelector(".visor").classList.contains("visor--previa"), "falta la clase visor--previa");
+      acc("igual");
+      P.afirmar("tras = ya no es vista previa",
+        !d.querySelector(".visor").classList.contains("visor--previa"), "sigue marcada");
 
-      P.seccion("MEMORIA E INDICADORES");
-      acc("limpiar");
-      P.afirmar("el indicador M empieza oculto", d.getElementById("indicador-memoria").hidden === true,
-                "visible sin memoria");
+      P.seccion("EDICIÓN");
+      caso("DEL borra un token entero", () => { escribir("2"); ins("sin("); acc("del"); }, "2", entrada);
+      caso("AC lo limpia todo", () => { escribir("99"); acc("ac"); }, "", entrada);
+      caso("el cursor inserta donde toca", () => {
+        escribir("12"); acc("izquierda"); escribir("9");
+      }, "192", entrada);
+      caso("encadenar desde Ans", () => {
+        escribir("7"); ins("×"); escribir("8"); acc("igual"); ins("+");
+      }, "Ans+", entrada);
+
+      P.seccion("SHIFT");
+      acc("ac");
+      P.afirmar("el indicador SHIFT empieza oculto",
+        d.getElementById("indicador-shift").hidden === true, "visible de más");
+      acc("shift");
+      P.afirmar("al pulsarlo aparece", d.getElementById("indicador-shift").hidden === false, "sigue oculto");
+      P.afirmar("y las teclas se marcan",
+        d.querySelector('[data-ins="sin("]').classList.contains("tecla--desplazada"), "sin marcar");
+      ins("sin(");
+      P.comparar("con SHIFT, sin escribe el arcoseno", entrada(), "sin⁻¹(");
+      P.afirmar("y SHIFT se apaga solo", d.getElementById("indicador-shift").hidden === true, "sigue encendido");
+      escribir("0"); ins("."); escribir("5"); acc("igual");
+      P.comparar("sin⁻¹(0,5) en grados", resultado(), "30");
+
+      P.seccion("MODO ANGULAR");
+      acc("ac");
+      P.comparar("arranca en DEG", d.getElementById("indicador-angulo").textContent, "DEG");
+      acc("angulo");
+      P.comparar("pasa a RAD", d.getElementById("indicador-angulo").textContent, "RAD");
+      acc("angulo");
+      P.comparar("luego a GRA", d.getElementById("indicador-angulo").textContent, "GRA");
+      acc("angulo");
+      P.comparar("y vuelve a DEG", d.getElementById("indicador-angulo").textContent, "DEG");
+
+      P.seccion("MEMORIA");
+      acc("ac");
+      P.afirmar("el indicador M empieza oculto",
+        d.getElementById("indicador-memoria").hidden === true, "visible de más");
       escribir("12"); mem("sumar");
-      P.afirmar("el indicador M aparece al guardar", d.getElementById("indicador-memoria").hidden === false,
-                "sigue oculto");
-      acc("limpiar"); mem("recuperar");
-      P.comparar("MR recupera el valor", pantalla(), "12");
+      P.afirmar("M+ enciende el indicador",
+        d.getElementById("indicador-memoria").hidden === false, "sigue oculto");
+      acc("ac"); mem("recuperar"); ins("×"); escribir("2"); acc("igual");
+      P.comparar("MR inserta la memoria y opera", resultado(), "24");
       mem("limpiar");
-      P.afirmar("MC oculta el indicador", d.getElementById("indicador-memoria").hidden === true,
-                "sigue visible");
+      P.afirmar("MC apaga el indicador",
+        d.getElementById("indicador-memoria").hidden === true, "sigue encendido");
 
-      P.comparar("el ángulo empieza en RAD", d.getElementById("indicador-angulo").textContent, "RAD");
-      acc("angulo");
-      P.comparar("el interruptor pasa a DEG", d.getElementById("indicador-angulo").textContent, "DEG");
-      acc("limpiar"); escribir("30"); fn("sin");
-      P.comparar("sen(30°) con el interruptor en DEG", pantalla(), "0,5");
-      acc("angulo");
+      P.seccion("TECLADO FÍSICO");
+      caso("dígitos, operadores y Enter", () => {
+        ["2", "+", "3", "*", "4", "Enter"].forEach((k) => teclear(k));
+      }, "14");
+      caso("paréntesis", () => { ["(", "2", "+", "3", ")", "*", "2", "Enter"].forEach(teclear); }, "10");
+      caso("Backspace borra", () => { ["1", "2", "3", "Backspace"].forEach(teclear); }, "12", entrada);
+      caso("Escape limpia", () => { ["9", "9", "Escape"].forEach(teclear); }, "", entrada);
+      caso("s escribe seno", () => { teclear("s"); }, "sin(", entrada);
+      caso("las flechas mueven el cursor", () => {
+        ["1", "2", "ArrowLeft", "9"].forEach(teclear);
+      }, "192", entrada);
+      caso("Ctrl+tecla se ignora", () => {
+        teclear("5"); teclear("c", { ctrlKey: true });
+      }, "5", entrada);
 
-      P.seccion("HISTORIAL EN PANTALLA");
-      acc("limpiar-historial");
+      P.seccion("HISTORIAL");
+      acc("ac");
+      buscar('[data-accion="limpiar-historial"]').click();
       P.afirmar("arranca vacío con su mensaje",
         d.querySelector(".historial__vacio") !== null, "no se pintó el estado vacío");
-      acc("limpiar"); num("7"); op("*"); num("8"); acc("igual");
-      acc("limpiar"); escribir("10"); op("-"); num("4"); acc("igual");
+      escribir("7"); ins("×"); escribir("8"); acc("igual");
+      acc("ac"); escribir("10"); ins("-"); escribir("4"); acc("igual");
       const filas = d.querySelectorAll(".historial__fila");
       P.comparar("pinta dos filas", String(filas.length), "2");
-      P.comparar("la más reciente va primero",
-        filas[0].querySelector(".historial__expresion").textContent, "10 − 4");
+      P.comparar("la más reciente primero",
+        filas[0].querySelector(".historial__expresion").textContent, "10-4");
       P.afirmar("cada fila tiene nombre accesible",
         [...filas].every((f) => (f.getAttribute("aria-label") || "").length > 0), "falta aria-label");
       filas[1].click();
-      P.comparar("pulsar una fila reutiliza su resultado", pantalla(), "56");
-      acc("limpiar-historial");
+      P.comparar("pulsar una fila la recupera", entrada(), "7×8");
+      acc("ac"); acc("arriba");
+      P.comparar("▲ recupera la última expresión", entrada(), "10-4");
+      buscar('[data-accion="limpiar-historial"]').click();
       P.afirmar("el botón Limpiar lo vacía",
         d.querySelector(".historial__vacio") !== null, "siguen las filas");
 
       P.seccion("ACCESIBILIDAD");
-      const salida = d.getElementById("actual");
-      P.comparar("la pantalla es un <output>", salida.tagName.toLowerCase(), "output");
+      const salida = d.getElementById("resultado");
+      P.comparar("el resultado es un <output>", salida.tagName.toLowerCase(), "output");
       P.comparar("con aria-live", salida.getAttribute("aria-live"), "polite");
       P.comparar("con role=status", salida.getAttribute("role"), "status");
       P.comparar("el documento declara idioma", d.documentElement.lang, "es");
       P.afirmar("la decoración está oculta a lectores",
         d.querySelector(".cosmos").getAttribute("aria-hidden") === "true", "falta aria-hidden");
+      P.afirmar("el cursor está oculto a lectores",
+        d.querySelector("#entrada .cursor").getAttribute("aria-hidden") === "true", "el cursor se anuncia");
       const sinNombre = [...d.querySelectorAll("button")]
         .filter((b) => !b.getAttribute("aria-label") && !/^[0-9]+$/.test(b.textContent.trim()))
         .map((b) => b.textContent.trim() || "(sin texto)");
@@ -170,31 +201,31 @@
         const [a, b] = [lum(fg), lum(bg)].sort((x, y) => y - x);
         return (a + 0.05) / (b + 0.05);
       };
-      const fondoPanel = canal("rgb(20, 17, 58)"); // color base de --panel
+      const FONDO_PANEL = [20, 17, 58];   // --panel
+      // El visor es rgba(6,20,24,.55) sobre el panel: se compone a mano.
+      const FONDO_VISOR = [12, 19, 39];
 
-      const conFondoPropio = [
-        ["dígitos", '[data-numero="7"]'],
-        ["acción (AC)", '[data-accion="limpiar"]'],
-        ["científica (sin)", '[data-funcion="sin"]'],
-        ["memoria (M+)", '[data-memoria="sumar"]'],
-        ["operador (+)", '[data-operador="+"]'],
-        ["igual", '[data-accion="igual"]'],
-        ["fila de historial", ".historial__fila, .historial__vacio"],
-      ];
-      conFondoPropio.forEach(([nombre, sel]) => {
+      [["dígitos", '[data-ins="7"]'], ["control (SHIFT)", '[data-accion="shift"]'],
+       ["función (sin)", '[data-ins="sin("]'], ["memoria (M+)", '[data-mem="sumar"]'],
+       ["borrar (AC)", '[data-accion="ac"]'], ["operador (+)", '[data-ins="+"]'],
+       ["igual", '[data-accion="igual"]'], ["fila de historial", ".historial__vacio"]]
+      .forEach(([nombre, sel]) => {
         const el = d.querySelector(sel);
         if (!el) { P.afirmar("contraste " + nombre, false, "elemento ausente: " + sel); return; }
         const cs = getComputedStyle(el);
-        const fondo = cs.backgroundColor === "rgba(0, 0, 0, 0)" ? fondoPanel : canal(cs.backgroundColor);
+        const fondo = cs.backgroundColor === "rgba(0, 0, 0, 0)" ? FONDO_PANEL : canal(cs.backgroundColor);
         const r = ratio(canal(cs.color), fondo);
         P.afirmar(`contraste ${nombre}: ${r.toFixed(2)}:1`, r >= 4.5, "por debajo de 4,5:1");
       });
 
-      [["contexto", "#contexto"], ["efemérides", ".efemerides"], ["pantalla", "#actual"],
-       ["título de historial", ".caja-historial__titulo"], ["enlace Limpiar", ".enlace"],
-       ["insignia de ángulo", "#indicador-angulo"]].forEach(([nombre, sel]) => {
+      [["entrada del visor", "#entrada", FONDO_VISOR], ["resultado", "#resultado", FONDO_VISOR],
+       ["insignia de ángulo", "#indicador-angulo", FONDO_VISOR],
+       ["efemérides", ".efemerides", FONDO_PANEL],
+       ["título de historial", ".caja-historial__titulo", FONDO_PANEL],
+       ["enlace Limpiar", ".enlace", FONDO_PANEL]]
+      .forEach(([nombre, sel, fondo]) => {
         const el = d.querySelector(sel);
-        const r = ratio(canal(getComputedStyle(el).color), fondoPanel);
+        const r = ratio(canal(getComputedStyle(el).color), fondo);
         P.afirmar(`contraste ${nombre}: ${r.toFixed(2)}:1`, r >= 4.5, "por debajo de 4,5:1");
       });
 
@@ -202,10 +233,10 @@
       document.querySelectorAll(".vp").forEach((f) => {
         const dd = f.contentDocument;
         const de = dd.documentElement;
-        "123456789012345".split("").forEach((n) => dd.querySelector(`[data-numero="${n}"]`).click());
+        "123456789012345".split("").forEach((n) => dd.querySelector(`[data-ins="${n}"]`).click());
         const desborda = de.scrollWidth > de.clientWidth;
         P.afirmar(
-          `sin desbordamiento horizontal a ${f.dataset.w}px (panel ${dd.querySelector(".panel").offsetWidth}px)`,
+          `sin desbordamiento horizontal a ${f.dataset.w}px (panel ${dd.querySelector(".fx").offsetWidth}px)`,
           !desborda,
           `scrollWidth=${de.scrollWidth} > clientWidth=${de.clientWidth}`
         );

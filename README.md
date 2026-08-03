@@ -1,48 +1,62 @@
-# Astrolabio — calculadora sideral
+# Astrolabio fx — calculadora científica
 
 [![Pruebas](https://github.com/Dankmoreno/calculadora-js/actions/workflows/ci.yml/badge.svg)](https://github.com/Dankmoreno/calculadora-js/actions/workflows/ci.yml)
 
-Calculadora científica con tema astrológico, hecha con HTML, CSS y JavaScript
+Calculadora científica al estilo de una **fx**, hecha con HTML, CSS y JavaScript
 puro: **sin dependencias, sin build y sin recursos externos**.
 
 🔗 **En vivo:** https://dankmoreno.github.io/calculadora-js/
 
-## Uso
+## Qué la hace una fx
 
-Abre `index.html` en el navegador. No hace falta instalar ni compilar nada.
+Escribes la **expresión completa** y luego pulsas `=`, en vez de ir operando
+tecla a tecla. Eso trae lo que se espera de una científica:
+
+- **Precedencia de operadores y paréntesis:** `2+3×4` da `14`, no `20`.
+- **Vista previa en vivo:** mientras escribes, el visor muestra el valor de la
+  expresión si ya es válida.
+- **Cursor y edición:** `◀ ▶` mueven dentro de la expresión, `DEL` borra el
+  token completo que haya antes (una `sin(` se va de una vez, no letra a letra).
+- **Corrección de errores:** si la expresión falla, se conserva en pantalla y el
+  cursor salta a la posición del fallo, como en una fx real.
+- **Cierre automático de paréntesis:** `sin(30` se resuelve sin cerrar.
+- **Multiplicación implícita:** `2π`, `3(4+5)`, `2sin(30)`, `2√9`.
+- **`Ans`:** al pulsar un operador tras un resultado, la expresión continúa
+  desde él.
 
 ## Funciones
 
-- **Aritmética:** `+`, `−`, `×`, `÷` y potencia `xʸ`, con encadenado
-  (`2 + 3 + 4` resuelve sobre la marcha)
-- **Científicas:** `sin`, `cos`, `tan`, `ln`, `log`, `√`, `x²`, `1/x`, `n!`,
-  constantes `π` y `e`, y cambio de signo `±`
-- **Ángulos:** interruptor RAD/DEG. En grados se limpia el ruido de coma
-  flotante (`sen 180°` da `0`, no `1,22e-16`); en radianes no, porque ahí un
-  valor diminuto sí puede ser el resultado real
-- **Memoria:** `MC`, `MR`, `M+`, con indicador `M` en pantalla
-- **Historial** de las últimas 50 operaciones; al pulsar una fila se reutiliza
-  su resultado
-- **Copiar** el resultado al portapapeles
-- **Porcentaje contextual:** `100 + 10 %` da `110` (porcentaje del operando
-  anterior), mientras que `50 %` suelto da `0,5`
-- **Errores controlados:** división entre cero, raíz o logaritmo de un negativo,
-  `1/0`, factorial no entero y desbordamiento muestran `Error` y la pantalla se
-  marca en rojo
+| Grupo | Teclas |
+|---|---|
+| Aritmética | `+` `−` `×` `÷` `^` `(` `)` `(−)` |
+| Potencias y raíces | `x⁻¹` `x²` `x³` `xʸ` `√` `∛` |
+| Trigonometría | `sin` `cos` `tan` y sus inversas con `SHIFT` |
+| Logaritmos | `ln` `log`, y `eˣ` `10ˣ` con `SHIFT` |
+| Otras | `n!` `%` `EXP` `π` `e` (con `SHIFT`) `abs` (con `SHIFT`) `Ans` |
+| Memoria | `M+` `M−` `MR` `MC` con indicador `M` |
+| Modos | `ANG` alterna **DEG → RAD → GRA** |
 
-### Teclado
+- **Porcentaje contextual:** `100+10%` da `110`; `50%` suelto da `0,5`.
+- **Historial** de las últimas 30 expresiones. `▲ ▼` las recorren y al pulsar
+  una fila se recupera.
+- **Errores al estilo fx:** `Syntax ERROR` y `Math ERROR` (división entre cero,
+  raíz o logaritmo de un negativo, `tan` en una asíntota, factorial no entero,
+  desbordamiento).
+- **Notación científica** automática fuera del rango del visor:
+  `1,23456789×10¹²`.
+
+### Teclado físico
 
 | Tecla | Acción | | Tecla | Acción |
 |---|---|---|---|---|
-| `0`–`9` | Dígito | | `p` | π |
-| `.` o `,` | Coma decimal | | `e` | Número e |
-| `+` `-` `*` `/` | Operador | | `r` | Raíz cuadrada |
-| `^` | Potencia | | `q` | Elevar al cuadrado |
-| `Enter` o `=` | Calcular | | `i` | Inverso (1/x) |
-| `Backspace` | Borrar un dígito | | `f` | Factorial |
-| `Escape` | Limpiar todo | | `l` / `g` | ln / log |
-| `%` | Porcentaje | | `s` `c` `t` | sin / cos / tan |
-| `n` | Cambiar de signo | | `d` | Alternar RAD/DEG |
+| `0`–`9` | Dígito | | `s` `c` `t` | sin / cos / tan |
+| `.` o `,` | Coma decimal | | `l` `g` | ln / log |
+| `+ - * /` | Operadores | | `r` | √ |
+| `^` | Potencia | | `p` `e` | π / e |
+| `(` `)` | Paréntesis | | `a` `m` | Ans / M |
+| `Enter` o `=` | Calcular | | `d` | Alternar DEG/RAD/GRA |
+| `Backspace` | DEL | | `←` `→` | Mover el cursor |
+| `Escape` | AC | | `↑` `↓` | Recorrer el historial |
 
 Las combinaciones con `Ctrl`, `Alt` o `Cmd` se ignoran, para no pisar los
 atajos del navegador.
@@ -50,28 +64,45 @@ atajos del navegador.
 ## Estructura
 
 ```
-index.html              marcado de la calculadora y de la capa decorativa
+index.html              visor, teclados y capa decorativa
 styles.css              tema cósmico, responsive, sin recursos externos
 src/
-  calculadora.js        núcleo de cálculo: sin DOM, testeable aislado
+  expresion.js          tokeniza, analiza y evalúa una expresión completa
+  calculadora.js        línea de entrada, cursor, historial, memoria y modos
   ui.js                 eventos y pintado; no calcula nada
 pruebas/
-  nucleo.html           pruebas del núcleo (se abren directamente)
-  interfaz.html         pruebas de DOM, accesibilidad, contraste y layout
+  expresion.html        pruebas del motor de expresiones
+  nucleo.html           pruebas del controlador
+  interfaz.html         DOM, accesibilidad, contraste y maquetación
   marco.js              micro-marco de pruebas
   ejecutar.sh           runner headless para la CI
 .github/workflows/      pruebas en cada push y publicación en Pages
 ```
 
-La separación entre `calculadora.js` y `ui.js` es deliberada: el núcleo no
-conoce el DOM, así que se puede probar sin navegador simulado y añadir
-funciones nuevas no obliga a tocar el pintado.
+Las tres capas están separadas a propósito: `expresion.js` no sabe que existe
+una calculadora, `calculadora.js` no sabe que existe un navegador y `ui.js` no
+calcula. Cada una se prueba por su cuenta.
+
+### Gramática que acepta el motor
+
+```
+expresion := termino (('+' | '-') termino)*
+termino   := unario (('×' | '÷') unario | implícita)*
+unario    := ('-' | '+') unario | potencia
+potencia  := postfijo ('^' unario)?          // asociativa por la derecha
+postfijo  := primario ('!' | '²' | '³' | '⁻¹' | '%')*
+primario  := número | constante | variable | función '(' expresion ')'
+           | '(' expresion ')' | ('√' | '∛') unario
+```
+
+De ahí salen los comportamientos esperables: `2^3^2` es `512` (no `64`),
+`-2^2` es `-4` y `√9×2` es `6`.
 
 ## Pruebas
 
-**En el navegador:** abre `pruebas/nucleo.html` directamente (doble clic).
-`pruebas/interfaz.html` carga `index.html` en un iframe, así que necesita que el
-proyecto se sirva por http; desde la raíz, por ejemplo:
+**En el navegador:** abre `pruebas/expresion.html` o `pruebas/nucleo.html`
+directamente (doble clic). `pruebas/interfaz.html` carga `index.html` en un
+iframe, así que necesita que el proyecto se sirva por http:
 
 ```sh
 python -m http.server 8123
@@ -85,23 +116,24 @@ bash pruebas/ejecutar.sh
 ```
 
 Devuelve un código de salida distinto de cero si algo falla, que es lo que usa
-la CI. Cobertura actual: **134 casos** — 75 del núcleo y 59 de interfaz.
+la CI. Cobertura actual: **243 casos** — 90 del motor de expresiones, 78 del
+controlador y 75 de interfaz.
 
 ## Precisión
 
-Los resultados calculados se redondean con `toPrecision(12)` para absorber el
-ruido de coma flotante (`0,1 + 0,2` da `0,3`) **sin** aplastar a cero los
-números muy pequeños ni dejar escapar un `Infinity`. Ese formateo se aplica solo
-a los resultados: lo que se teclea se muestra tal cual, sin reescribirse. La
-entrada se limita a 16 dígitos, el límite real de precisión de un `double`.
+Los resultados se redondean con `toPrecision(12)` para absorber el ruido de
+coma flotante (`0,1+0,2` da `0,3`) y luego se muestran con hasta 10 cifras
+significativas, como una fx. Ese formateo se aplica solo a los resultados: lo
+que se teclea se muestra tal cual. La entrada admite 120 caracteres.
 
 ## Accesibilidad
 
-- La pantalla es un `<output>` con `role="status"` y `aria-live="polite"`: los
+- El resultado es un `<output>` con `role="status"` y `aria-live="polite"`: los
   lectores de pantalla anuncian cada resultado.
-- Todos los botones no numéricos tienen `aria-label`.
-- Todos los pares de color superan el mínimo AA de WCAG (4,5:1); el más bajo
-  medido es 8,58:1. El contraste se verifica en las pruebas sobre los colores
-  realmente renderizados, no sobre los valores del código.
-- La capa decorativa está marcada `aria-hidden` y las animaciones se desactivan
-  con `prefers-reduced-motion`.
+- Todos los botones no numéricos tienen `aria-label`, incluidas las segundas
+  funciones de `SHIFT`.
+- Todos los pares de color superan el mínimo AA de WCAG (4,5:1). El contraste se
+  verifica en las pruebas sobre los colores realmente renderizados, no sobre los
+  valores del código.
+- La capa decorativa y el cursor están marcados `aria-hidden`, y las animaciones
+  se desactivan con `prefers-reduced-motion`.

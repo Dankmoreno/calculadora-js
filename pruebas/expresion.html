@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pruebas del motor de expresiones</title>
+  <link rel="stylesheet" href="estilo-pruebas.css">
+</head>
+<body>
+  <h1>Pruebas del motor de expresiones</h1>
+  <p class="nota">
+    Prueban <code>src/expresion.js</code>: tokenizado, precedencia, paréntesis,
+    funciones y errores. Sin DOM: puedes abrir este archivo directamente.
+  </p>
+  <pre id="salida">ejecutando…</pre>
+
+  <script src="../src/expresion.js"></script>
+  <script src="marco.js"></script>
+  <script>
+    const P = window.Pruebas;
+    const E = window.Expresion;
+
+    const VARS = { Ans: 0, A: 0, B: 0, C: 0, D: 0, M: 0 };
+
+    // Evalúa y redondea a 12 cifras para comparar sin ruido de coma flotante.
+    function val(texto, angulo, variables) {
+      try {
+        const r = E.calcular(texto, { angulo: angulo || "DEG", variables: variables || VARS });
+        return String(parseFloat(r.toPrecision(12)));
+      } catch (e) {
+        return e.tipo ? e.tipo + " ERROR" : "EXCEPCIÓN: " + e.message;
+      }
+    }
+
+    const igual = (expr, esperado, angulo, vars) => P.comparar(expr, val(expr, angulo, vars), esperado);
+
+    P.seccion("PRECEDENCIA Y PARÉNTESIS");
+    igual("2+3×4", "14");
+    igual("(2+3)×4", "20");
+    igual("2+3×4-6÷3", "12");
+    igual("100÷(2+3)÷2", "10");
+    igual("((2+3))×2", "10");
+    igual("2×(3+(4-1))", "12");
+
+    P.seccion("POTENCIAS Y SIGNO");
+    igual("2^10", "1024");
+    igual("2^3^2", "512");          // asociativa por la derecha: 2^(3^2)
+    igual("-2^2", "-4");            // el signo se aplica después de la potencia
+    igual("(-2)^2", "4");
+    igual("2^-3", "0.125");
+    igual("-5+3", "-2");
+    igual("--5", "5");
+
+    P.seccion("MULTIPLICACIÓN IMPLÍCITA");
+    igual("2π", String(parseFloat((2 * Math.PI).toPrecision(12))));
+    igual("3(4+5)", "27");
+    igual("(2)(3)", "6");
+    igual("2√9", "6");
+    igual("2sin(30)", "1");
+    igual("2e", String(parseFloat((2 * Math.E).toPrecision(12))));
+
+    P.seccion("POSTFIJOS");
+    igual("5!", "120");
+    igual("0!", "1");
+    igual("3²", "9");
+    igual("2³", "8");
+    igual("4⁻¹", "0.25");
+    igual("50%", "0.5");
+    igual("3²+4²", "25");
+    igual("(2+3)²", "25");
+
+    P.seccion("PORCENTAJE RELATIVO");
+    igual("100+10%", "110");
+    igual("200-25%", "150");
+    igual("200×10%", "20");
+    igual("80+20%+10", "106");      // 80+16 = 96, y luego +10
+
+    P.seccion("RAÍCES");
+    igual("√9", "3");
+    igual("√9×2", "6");
+    igual("√(9×4)", "6");
+    igual("∛27", "3");
+    igual("∛-8", "-2");
+    igual("√2", String(parseFloat(Math.SQRT2.toPrecision(12))));
+
+    P.seccion("FUNCIONES Y MODO ANGULAR");
+    igual("sin(30)", "0.5", "DEG");
+    igual("cos(60)", "0.5", "DEG");
+    igual("tan(45)", "1", "DEG");
+    igual("sin(180)", "0", "DEG");           // sin ruido de coma flotante
+    igual("sin(0)", "0", "RAD");
+    igual("cos(0)", "1", "RAD");
+    igual("sin(100)", "1", "GRA");           // 100 gradianes = 90°
+    igual("sin⁻¹(0.5)", "30", "DEG");
+    igual("cos⁻¹(0)", "90", "DEG");
+    igual("tan⁻¹(1)", "45", "DEG");
+    igual("ln(e)", "1");
+    igual("log(1000)", "3");
+    igual("abs(-7)", "7");
+    igual("e^(2)", String(parseFloat((Math.E ** 2).toPrecision(12))));
+    igual("10^(3)", "1000");
+
+    P.seccion("CIERRE AUTOMÁTICO DE PARÉNTESIS");
+    igual("sin(30", "0.5", "DEG");
+    igual("2×(3+4", "14");
+    igual("√(9", "3");
+    igual("ln(e", "1");
+
+    P.seccion("NOTACIÓN DE EXPONENTE (tecla EXP)");
+    igual("1E3", "1000");
+    igual("2E-3", "0.002");
+    igual("1.5E2", "150");
+    igual("2E3+1", "2001");
+
+    P.seccion("VARIABLES");
+    igual("Ans+1", "43", "DEG", { ...VARS, Ans: 42 });
+    igual("A×B", "12", "DEG", { ...VARS, A: 3, B: 4 });
+    igual("2M", "10", "DEG", { ...VARS, M: 5 });
+    igual("Ans", "0");
+
+    P.seccion("ERRORES DE SINTAXIS");
+    igual("2+", "Syntax ERROR");
+    igual("", "Syntax ERROR");
+    igual("×5", "Syntax ERROR");
+    igual("2++×3", "Syntax ERROR");
+    igual("2)", "Syntax ERROR");
+    igual("1.2.3", "Syntax ERROR");
+    igual("2 & 3", "Syntax ERROR");
+
+    P.seccion("ERRORES MATEMÁTICOS");
+    igual("5÷0", "Math ERROR");
+    igual("ln(0)", "Math ERROR");
+    igual("ln(-1)", "Math ERROR");
+    igual("log(0)", "Math ERROR");
+    igual("√-1", "Math ERROR");
+    igual("0⁻¹", "Math ERROR");
+    igual("171!", "Math ERROR");
+    igual("2.5!", "Math ERROR");
+    igual("(-3)!", "Math ERROR");
+    igual("tan(90)", "Math ERROR", "DEG");
+    igual("tan(270)", "Math ERROR", "DEG");
+    igual("sin⁻¹(2)", "Math ERROR");
+    igual("cos⁻¹(-2)", "Math ERROR");
+    igual("(-8)^0.5", "Math ERROR");
+    igual("1E200×1E200", "Math ERROR");   // desbordamiento a infinito
+
+    P.seccion("PRECISIÓN");
+    igual("0.1+0.2", "0.3");
+    igual("1÷3", "0.333333333333");
+    igual("1E-13", "1e-13");
+    igual("2^0.5", String(parseFloat(Math.SQRT2.toPrecision(12))));
+
+    P.publicar();
+  </script>
+</body>
+</html>

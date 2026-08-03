@@ -40,7 +40,7 @@ done
 
 FALLOS_TOTALES=0
 
-for pagina in nucleo interfaz; do
+for pagina in expresion nucleo interfaz; do
   echo ""
   echo "──────── $pagina ────────"
 

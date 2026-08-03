@@ -1,259 +1,270 @@
 /**
- * Núcleo de cálculo. No toca el DOM ni conoce la interfaz: recibe pulsaciones,
- * mantiene el estado y devuelve una instantánea. Así puede probarse aislado.
+ * Controlador al estilo de una calculadora científica fx: mantiene la línea de
+ * entrada con su cursor, el modo angular, las variables, la memoria y el
+ * historial. No toca el DOM; delega todo el cálculo en Expresion.
  */
 (function (global) {
   "use strict";
 
-  // Un double solo garantiza ~15-17 cifras significativas; más allá la entrada
-  // dejaría de coincidir con el valor con el que realmente se opera.
-  const MAX_DIGITOS = 16;
-  const LIMITE_HISTORIAL = 50;
+  const LARGO_MAXIMO = 120;
+  const LIMITE_HISTORIAL = 30;
+  const MODOS = ["DEG", "RAD", "GRA"];
 
-  // 170! es el último factorial que cabe en un double.
-  const MAX_FACTORIAL = 170;
+  const SUPERINDICES = { "-": "⁻", 0: "⁰", 1: "¹", 2: "²", 3: "³", 4: "⁴",
+                         5: "⁵", 6: "⁶", 7: "⁷", 8: "⁸", 9: "⁹" };
 
-  const SIMBOLOS = { "+": "+", "-": "−", "*": "×", "/": "÷", "^": "^" };
+  const aSuperindice = (n) => String(n).split("").map((c) => SUPERINDICES[c] || c).join("");
+  const conComa = (texto) => texto.replace(/\./g, ",");
 
   /**
-   * Se aplica SOLO a resultados calculados, nunca a lo que el usuario teclea:
-   * toPrecision(12) absorbe el ruido de coma flotante (0,1 + 0,2 = 0,3) sin
-   * aplastar a cero los números muy pequeños ni dejar escapar un Infinity.
+   * Formato de una fx: hasta 10 cifras significativas, y notación científica
+   * fuera del rango representable en pantalla.
    */
-  function formatear(numero) {
-    if (!isFinite(numero)) return "Error";
-    const ajustado = parseFloat(numero.toPrecision(12));
-    return isFinite(ajustado) ? String(ajustado) : "Error";
-  }
+  function formatear(x) {
+    if (!isFinite(x)) return "Math ERROR";
 
-  const conComa = (texto) => (texto === "Error" ? "Error" : texto.replace(".", ","));
-  const contarDigitos = (texto) => (texto.match(/\d/g) || []).length;
+    // toPrecision(12) absorbe el ruido de coma flotante antes de recortar a las
+    // 10 cifras que muestra el visor, sin aplastar los números muy pequeños.
+    const limpio = parseFloat(x.toPrecision(12));
+    if (limpio === 0) return "0";
 
-  function factorial(n) {
-    if (!Number.isInteger(n) || n < 0) return NaN;
-    if (n > MAX_FACTORIAL) return Infinity;
-    let resultado = 1;
-    for (let i = 2; i <= n; i++) resultado *= i;
-    return resultado;
-  }
-
-  function operar(a, b, op) {
-    switch (op) {
-      case "+": return a + b;
-      case "-": return a - b;
-      case "*": return a * b;
-      case "/": return b === 0 ? NaN : a / b;   // NaN se formatea como "Error"
-      case "^": return Math.pow(a, b);
-      default:  return b;
+    const magnitud = Math.abs(limpio);
+    if (magnitud >= 1e10 || magnitud < 1e-9) {
+      let exponente = Math.floor(Math.log10(magnitud));
+      let mantisa = parseFloat((limpio / Math.pow(10, exponente)).toPrecision(10));
+      if (Math.abs(mantisa) >= 10) { mantisa /= 10; exponente += 1; }
+      return `${conComa(String(mantisa))}×10${aSuperindice(exponente)}`;
     }
+
+    return conComa(String(parseFloat(limpio.toPrecision(10))));
   }
+
+  // Un texto que continúa el cálculo anterior en lugar de empezar uno nuevo.
+  const CONTINUA = /^[+\-×÷^]|^[²³!%]|^⁻¹/;
 
   function crear() {
-    let entrada = "0";
-    let acumulado = null;
-    let operador = null;
-    let reiniciar = false;          // el próximo dígito empieza entrada nueva
-    let esperandoOperando = false;  // se pulsó un operador y aún no hay 2º operando
-    let memoria = 0;
-    let grados = false;             // false = radianes
+    let entrada = "";
+    let cursor = 0;
+    let resultado = "";
+    let error = "";
+    let posicionError = -1;
+    let congelado = false;      // se acaba de pulsar =: lo siguiente empieza de nuevo
+    let shift = false;
+    let angulo = "DEG";
+    let esperando = null;       // "STO" | "RCL" mientras se elige la variable
+    let indiceHistorial = -1;
+
+    const variables = { Ans: 0, A: 0, B: 0, C: 0, D: 0, M: 0 };
     let historial = [];
 
-    const hayError = () => entrada === "Error";
-    const valor = () => Number(entrada);
-
-    // Una constante, una función o un valor recuperado cuentan como operando ya
-    // introducido: reinician la escritura pero no dejan la operación a la espera.
-    function fijar(texto) {
-      entrada = texto;
-      reiniciar = true;
-      esperandoOperando = false;
+    function reiniciarEdicion() {
+      entrada = "";
+      cursor = 0;
+      error = "";
+      posicionError = -1;
     }
 
-    function digito(caracter) {
-      if (hayError()) limpiar();
+    function insertar(texto) {
+      if (esperando) { esperando = null; }
 
-      if (reiniciar) {
-        entrada = caracter;
-        reiniciar = false;
-        esperandoOperando = false;
-        return;
+      if (congelado) {
+        // Un operador encadena con el resultado anterior; cualquier otra cosa
+        // empieza una expresión nueva. Es el comportamiento de una fx.
+        if (CONTINUA.test(texto)) {
+          entrada = "Ans";
+          cursor = 3;
+        } else {
+          entrada = "";
+          cursor = 0;
+        }
+        congelado = false;
+        resultado = "";
       }
 
-      esperandoOperando = false;
-      if (contarDigitos(entrada) >= MAX_DIGITOS) return;
+      if (error) { error = ""; posicionError = -1; }
+      if (entrada.length + texto.length > LARGO_MAXIMO) return;
 
-      if (entrada === "0") entrada = caracter;
-      else if (entrada === "-0") entrada = "-" + caracter;
-      else entrada += caracter;
-    }
-
-    function punto() {
-      if (hayError()) limpiar();
-
-      if (reiniciar) {
-        entrada = "0.";
-        reiniciar = false;
-        esperandoOperando = false;
-        return;
-      }
-
-      esperandoOperando = false;
-      if (!entrada.includes(".")) entrada += ".";
-    }
-
-    function elegirOperador(op) {
-      if (hayError()) return;
-
-      if (acumulado !== null && operador && !esperandoOperando) {
-        igual();
-        if (hayError()) return;
-      }
-
-      // Siempre después de resolver: igual() deja acumulado en null y el
-      // resultado debe volver a ser el operando izquierdo.
-      acumulado = valor();
-      operador = op;
-      reiniciar = true;
-      esperandoOperando = true;
-    }
-
-    function igual() {
-      if (hayError() || acumulado === null || operador === null) return;
-
-      const izquierdo = acumulado;
-      const derecho = valor();
-      const op = operador;
-      const resultado = formatear(operar(izquierdo, derecho, op));
-
-      historial.unshift({
-        expresion: `${conComa(formatear(izquierdo))} ${SIMBOLOS[op]} ${conComa(formatear(derecho))}`,
-        resultado,
-      });
-      if (historial.length > LIMITE_HISTORIAL) historial.pop();
-
-      entrada = resultado;
-      acumulado = null;
-      operador = null;
-      reiniciar = true;
-      esperandoOperando = false;
-    }
-
-    function limpiar() {
-      entrada = "0";
-      acumulado = null;
-      operador = null;
-      reiniciar = false;
-      esperandoOperando = false;
+      entrada = entrada.slice(0, cursor) + texto + entrada.slice(cursor);
+      cursor += texto.length;
+      indiceHistorial = -1;
     }
 
     function borrar() {
-      if (hayError() || reiniciar) {
-        entrada = "0";
-        reiniciar = false;
-        esperandoOperando = false;
+      esperando = null;
+      if (congelado) { congelado = false; resultado = ""; }
+      if (error) { error = ""; posicionError = -1; }
+      if (cursor === 0) return;
+
+      // Borra el token completo que hay antes del cursor, no solo un carácter:
+      // "sin(" se va de una vez, como en una fx.
+      const antes = entrada.slice(0, cursor);
+      const token = [...global.Expresion.FUNCIONES, "⁻¹", "Ans"]
+        .filter((t) => antes.endsWith(t))
+        .sort((a, b) => b.length - a.length)[0];
+      const paso = token ? token.length : 1;
+
+      entrada = entrada.slice(0, cursor - paso) + entrada.slice(cursor);
+      cursor -= paso;
+    }
+
+    function limpiarTodo() {
+      reiniciarEdicion();
+      resultado = "";
+      congelado = false;
+      esperando = null;
+      shift = false;
+      indiceHistorial = -1;
+    }
+
+    function mover(delta) {
+      esperando = null;
+      if (congelado) { congelado = false; }
+      cursor = Math.max(0, Math.min(entrada.length, cursor + delta));
+    }
+
+    function contexto() {
+      return { angulo, variables };
+    }
+
+    // Evalúa la línea actual sin tocar el estado. Devuelve {ok, valor} o {ok:false}.
+    function intentar(texto) {
+      try {
+        return { ok: true, valor: global.Expresion.calcular(texto, contexto()) };
+      } catch (e) {
+        return { ok: false, error: e };
+      }
+    }
+
+    function igual() {
+      esperando = null;
+      shift = false;
+      if (entrada.trim() === "") return;
+
+      const intento = intentar(entrada);
+      if (!intento.ok) {
+        error = intento.error.tipo === "Math" ? "Math ERROR" : "Syntax ERROR";
+        posicionError = typeof intento.error.posicion === "number" ? intento.error.posicion : -1;
+        resultado = "";
+        // Una fx deja la expresión para poder corregirla, con el cursor en el fallo.
+        if (posicionError >= 0) cursor = Math.min(posicionError, entrada.length);
+        congelado = false;
         return;
       }
-      entrada = entrada.length > 1 ? entrada.slice(0, -1) : "0";
-      if (entrada === "-") entrada = "0";
-    }
 
-    // Con una suma o resta pendiente el % es "porcentaje del operando anterior"
-    // (100 + 10 % = 110). Suelto, o con × y ÷, es simplemente dividir entre 100.
-    function porcentaje() {
-      if (hayError()) return;
-      const fraccion = valor() / 100;
-      const relativo = acumulado !== null && (operador === "+" || operador === "-");
-      entrada = formatear(relativo ? acumulado * fraccion : fraccion);
-      reiniciar = false;
-      esperandoOperando = false;
-    }
+      variables.Ans = intento.valor;
+      resultado = formatear(intento.valor);
+      error = "";
+      posicionError = -1;
+      congelado = true;
 
-    function signo() {
-      if (hayError() || entrada === "0") return;
-      entrada = entrada.startsWith("-") ? entrada.slice(1) : "-" + entrada;
-    }
-
-    function constante(nombre) {
-      if (nombre === "pi") fijar(formatear(Math.PI));
-      else if (nombre === "e") fijar(formatear(Math.E));
-    }
-
-    const aRadianes = (x) => (grados ? (x * Math.PI) / 180 : x);
-
-    // En grados, los ángulos notables producen ruido (sen 180° = 1,22e-16).
-    // En radianes no se toca: ahí un valor diminuto sí puede ser el resultado real.
-    const sinRuido = (r) => (grados && Math.abs(r) < 1e-12 ? 0 : r);
-
-    function tangente(x) {
-      // tan es asíntota en 90° + k·180°.
-      if (grados && (Math.abs(x) - 90) % 180 === 0) return NaN;
-      return Math.tan(aRadianes(x));
-    }
-
-    function funcion(nombre) {
-      if (hayError()) return;
-      const x = valor();
-      let r;
-
-      switch (nombre) {
-        case "raiz":      r = x < 0 ? NaN : Math.sqrt(x); break;
-        case "cuadrado":  r = x * x; break;
-        case "inverso":   r = x === 0 ? NaN : 1 / x; break;
-        case "factorial": r = factorial(x); break;
-        case "ln":        r = x <= 0 ? NaN : Math.log(x); break;
-        case "log":       r = x <= 0 ? NaN : Math.log10(x); break;
-        case "sin":       r = sinRuido(Math.sin(aRadianes(x))); break;
-        case "cos":       r = sinRuido(Math.cos(aRadianes(x))); break;
-        case "tan":       r = sinRuido(tangente(x)); break;
-        default: return;
-      }
-
-      fijar(formatear(r));
-    }
-
-    function accionMemoria(que) {
-      switch (que) {
-        case "limpiar":    memoria = 0; break;
-        case "sumar":      if (!hayError()) memoria += valor(); break;
-        case "restar":     if (!hayError()) memoria -= valor(); break;
-        case "recuperar":  fijar(formatear(memoria)); break;
-      }
+      historial.unshift({ expresion: conComa(entrada), resultado });
+      if (historial.length > LIMITE_HISTORIAL) historial.pop();
+      indiceHistorial = -1;
     }
 
     function alternarAngulo() {
-      grados = !grados;
+      angulo = MODOS[(MODOS.indexOf(angulo) + 1) % MODOS.length];
     }
 
-    function usarDelHistorial(indice) {
-      const fila = historial[indice];
-      if (fila && fila.resultado !== "Error") fijar(fila.resultado);
+    function alternarShift() {
+      shift = !shift;
+    }
+
+    function pedirVariable(que) {
+      esperando = que;
+    }
+
+    // Completa un STO/RCL pendiente. Devuelve true si consumió la pulsación.
+    function elegirVariable(nombre) {
+      if (!esperando) return false;
+      const que = esperando;
+      esperando = null;
+
+      if (!(nombre in variables) || nombre === "Ans") return true;
+
+      if (que === "RCL") {
+        insertar(nombre);
+        return true;
+      }
+
+      const fuente = congelado || entrada.trim() === ""
+        ? { ok: true, valor: variables.Ans }
+        : intentar(entrada);
+
+      if (!fuente.ok) {
+        error = "Syntax ERROR";
+        resultado = "";
+        return true;
+      }
+
+      variables[nombre] = fuente.valor;
+      resultado = formatear(fuente.valor);
+      congelado = true;
+      return true;
+    }
+
+    function memoria(operacion) {
+      esperando = null;
+      if (operacion === "limpiar") { variables.M = 0; return; }
+      if (operacion === "recuperar") { insertar("M"); return; }
+
+      const base = congelado || entrada.trim() === "" ? { ok: true, valor: variables.Ans } : intentar(entrada);
+      if (!base.ok) { error = "Syntax ERROR"; resultado = ""; return; }
+
+      variables.M += operacion === "restar" ? -base.valor : base.valor;
+      resultado = formatear(variables.M);
+      congelado = true;
+    }
+
+    function recorrerHistorial(delta) {
+      if (historial.length === 0) return;
+      esperando = null;
+
+      const siguiente = indiceHistorial + delta;
+      if (siguiente < 0) { indiceHistorial = -1; return; }
+      if (siguiente >= historial.length) return;
+
+      indiceHistorial = siguiente;
+      entrada = historial[indiceHistorial].expresion.replace(/,/g, ".");
+      cursor = entrada.length;
+      resultado = "";
+      error = "";
+      congelado = false;
     }
 
     function limpiarHistorial() {
       historial = [];
+      indiceHistorial = -1;
     }
 
     function estado() {
       return {
-        pantalla: conComa(entrada),
-        contexto:
-          acumulado !== null && operador
-            ? `${conComa(formatear(acumulado))} ${SIMBOLOS[operador]}`
-            : "",
-        error: hayError(),
-        memoria,
-        tieneMemoria: memoria !== 0,
-        angulo: grados ? "DEG" : "RAD",
-        historial: historial.map((fila) => ({ ...fila, resultado: conComa(fila.resultado) })),
+        entrada: conComa(entrada),
+        cursor,
+        resultado,
+        error,
+        // La vista previa en vivo que muestran las fx modernas mientras escribes.
+        vistaPrevia: (() => {
+          if (congelado || error || entrada.trim() === "") return "";
+          const intento = intentar(entrada);
+          return intento.ok ? formatear(intento.valor) : "";
+        })(),
+        angulo,
+        shift,
+        esperando,
+        memoria: variables.M,
+        tieneMemoria: variables.M !== 0,
+        variables: { ...variables },
+        historial: historial.slice(),
       };
     }
 
     return {
-      digito, punto, operador: elegirOperador, igual, limpiar, borrar,
-      porcentaje, signo, constante, funcion, memoria: accionMemoria,
-      alternarAngulo, usarDelHistorial, limpiarHistorial, estado,
+      insertar, borrar, limpiarTodo, mover, igual,
+      alternarAngulo, alternarShift, pedirVariable, elegirVariable,
+      memoria, recorrerHistorial, limpiarHistorial, estado,
     };
   }
 
-  global.Calculadora = { crear, formatear, MAX_DIGITOS, MAX_FACTORIAL };
+  global.Calculadora = { crear, formatear, LARGO_MAXIMO, MODOS };
 })(typeof window !== "undefined" ? window : globalThis);

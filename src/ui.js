@@ -1,17 +1,18 @@
 /**
  * Capa de interfaz: escucha eventos, pinta el estado y no calcula nada.
- * Toda la aritmética vive en calculadora.js.
+ * Todo el cálculo vive en expresion.js y calculadora.js.
  */
 (function () {
   "use strict";
 
   const calc = window.Calculadora.crear();
 
-  const elPantalla = document.querySelector(".pantalla");
-  const elActual = document.getElementById("actual");
-  const elContexto = document.getElementById("contexto");
-  const elMemoria = document.getElementById("indicador-memoria");
+  const elEntrada = document.getElementById("entrada");
+  const elResultado = document.getElementById("resultado");
   const elAngulo = document.getElementById("indicador-angulo");
+  const elShift = document.getElementById("indicador-shift");
+  const elMemoria = document.getElementById("indicador-memoria");
+  const elVisor = document.querySelector(".visor");
   const elHistorial = document.getElementById("historial");
   const elAviso = document.getElementById("aviso");
 
@@ -21,6 +22,24 @@
     elAviso.textContent = texto;
     clearTimeout(temporizadorAviso);
     temporizadorAviso = setTimeout(() => { elAviso.textContent = ""; }, 2000);
+  }
+
+  // ------------------------------------------------------------------ pintado
+
+  function pintarEntrada(estado) {
+    elEntrada.replaceChildren();
+
+    const antes = estado.entrada.slice(0, estado.cursor);
+    const despues = estado.entrada.slice(estado.cursor);
+
+    if (antes) elEntrada.appendChild(document.createTextNode(antes));
+
+    const cursor = document.createElement("span");
+    cursor.className = "cursor";
+    cursor.setAttribute("aria-hidden", "true");
+    elEntrada.appendChild(cursor);
+
+    if (despues) elEntrada.appendChild(document.createTextNode(despues));
   }
 
   function pintarHistorial(filas) {
@@ -40,7 +59,7 @@
       boton.type = "button";
       boton.className = "historial__fila";
       boton.dataset.historial = String(indice);
-      boton.setAttribute("aria-label", `Usar el resultado ${fila.resultado} de ${fila.expresion}`);
+      boton.setAttribute("aria-label", `Reutilizar ${fila.expresion} igual a ${fila.resultado}`);
 
       const expresion = document.createElement("span");
       expresion.className = "historial__expresion";
@@ -59,24 +78,37 @@
   function render() {
     const estado = calc.estado();
 
-    elActual.textContent = estado.pantalla;
-    elContexto.textContent = estado.contexto;
-    elPantalla.classList.toggle("pantalla--error", estado.error);
+    pintarEntrada(estado);
 
-    elMemoria.hidden = !estado.tieneMemoria;
+    if (estado.error) {
+      elResultado.textContent = estado.error;
+    } else if (estado.resultado) {
+      elResultado.textContent = estado.resultado;
+    } else if (estado.vistaPrevia) {
+      elResultado.textContent = "= " + estado.vistaPrevia;
+    } else {
+      elResultado.textContent = "";
+    }
+
+    elVisor.classList.toggle("visor--error", Boolean(estado.error));
+    elVisor.classList.toggle("visor--previa", !estado.error && !estado.resultado && Boolean(estado.vistaPrevia));
+
     elAngulo.textContent = estado.angulo;
-    elAngulo.setAttribute(
-      "aria-label",
-      estado.angulo === "DEG"
-        ? "Ángulos en grados. Pulsa para cambiar a radianes"
-        : "Ángulos en radianes. Pulsa para cambiar a grados"
-    );
+    elShift.hidden = !estado.shift;
+    elMemoria.hidden = !estado.tieneMemoria;
+
+    document.querySelectorAll("[data-ins-shift]").forEach((tecla) => {
+      tecla.classList.toggle("tecla--desplazada", estado.shift);
+    });
 
     pintarHistorial(estado.historial);
   }
 
+  // ------------------------------------------------------------------ acciones
+
   async function copiar() {
-    const texto = calc.estado().pantalla;
+    const estado = calc.estado();
+    const texto = estado.error || estado.resultado || estado.vistaPrevia || estado.entrada;
     try {
       await navigator.clipboard.writeText(texto);
       avisar("Copiado");
@@ -96,74 +128,77 @@
   }
 
   const ACCIONES = {
-    limpiar: () => calc.limpiar(),
-    borrar: () => calc.borrar(),
     igual: () => calc.igual(),
-    porcentaje: () => calc.porcentaje(),
-    signo: () => calc.signo(),
-    punto: () => calc.punto(),
+    ac: () => calc.limpiarTodo(),
+    del: () => calc.borrar(),
+    shift: () => calc.alternarShift(),
     angulo: () => calc.alternarAngulo(),
+    izquierda: () => calc.mover(-1),
+    derecha: () => calc.mover(1),
+    arriba: () => calc.recorrerHistorial(1),
+    abajo: () => calc.recorrerHistorial(-1),
     copiar,
     "limpiar-historial": () => calc.limpiarHistorial(),
   };
 
-  document.querySelector(".panel").addEventListener("click", (evento) => {
-    const boton = evento.target.closest("button");
-    if (!boton) return;
+  function pulsar(tecla) {
+    const { ins, insShift, accion, mem, historial } = tecla.dataset;
+    const shift = calc.estado().shift;
 
-    const { numero, operador, funcion, constante, memoria, accion, historial } = boton.dataset;
+    if (ins !== undefined) {
+      calc.insertar(shift && insShift !== undefined ? insShift : ins);
+      if (shift) calc.alternarShift();
+      return;
+    }
+    if (mem !== undefined) { calc.memoria(mem); return; }
+    if (historial !== undefined) {
+      const fila = calc.estado().historial[Number(historial)];
+      if (fila) {
+        calc.limpiarTodo();
+        calc.insertar(fila.expresion.replace(/,/g, "."));
+      }
+      return;
+    }
+    if (accion !== undefined && ACCIONES[accion]) ACCIONES[accion]();
+  }
 
-    if (numero !== undefined) calc.digito(numero);
-    else if (operador !== undefined) calc.operador(operador);
-    else if (funcion !== undefined) calc.funcion(funcion);
-    else if (constante !== undefined) calc.constante(constante);
-    else if (memoria !== undefined) calc.memoria(memoria);
-    else if (historial !== undefined) calc.usarDelHistorial(Number(historial));
-    else if (accion !== undefined && ACCIONES[accion]) ACCIONES[accion]();
-    else return;
-
+  document.querySelector(".fx").addEventListener("click", (evento) => {
+    const tecla = evento.target.closest("button");
+    if (!tecla) return;
+    pulsar(tecla);
     render();
   });
 
-  // Atajos de una sola tecla. Los que llevan modificador se tratan aparte.
-  const ATAJOS = {
-    Escape: () => calc.limpiar(),
-    Backspace: () => calc.borrar(),
-    Delete: () => calc.limpiar(),
-    "%": () => calc.porcentaje(),
-    p: () => calc.constante("pi"),
-    e: () => calc.constante("e"),
-    r: () => calc.funcion("raiz"),
-    q: () => calc.funcion("cuadrado"),
-    i: () => calc.funcion("inverso"),
-    f: () => calc.funcion("factorial"),
-    l: () => calc.funcion("ln"),
-    g: () => calc.funcion("log"),
-    s: () => calc.funcion("sin"),
-    c: () => calc.funcion("cos"),
-    t: () => calc.funcion("tan"),
-    n: () => calc.signo(),
-    d: () => calc.alternarAngulo(),
-    "^": () => calc.operador("^"),
+  // ------------------------------------------------------------------ teclado
+
+  const DIRECTAS = {
+    "*": "×", "x": "×", "/": "÷", "+": "+", "-": "-",
+    "(": "(", ")": ")", "^": "^", ".": ".", ",": ".", "%": "%", "!": "!",
+  };
+
+  const LETRAS = {
+    s: "sin(", c: "cos(", t: "tan(", l: "ln(", g: "log(",
+    r: "√", p: "π", e: "e", a: "Ans", m: "M",
   };
 
   document.addEventListener("keydown", (evento) => {
-    // Ctrl+C debe seguir copiando la selección del navegador.
     if (evento.ctrlKey || evento.metaKey || evento.altKey) return;
 
     const { key } = evento;
-    const simple = key.length === 1 ? key.toLowerCase() : key;
+    const bajo = key.length === 1 ? key.toLowerCase() : key;
 
-    if (/^[0-9]$/.test(key)) calc.digito(key);
-    else if (key === "." || key === ",") calc.punto();
-    else if (["+", "-", "*", "/"].includes(key)) calc.operador(key);
-    else if (key === "Enter" || key === "=") {
-      evento.preventDefault();
-      calc.igual();
-    } else if (ATAJOS[simple]) {
-      evento.preventDefault();
-      ATAJOS[simple]();
-    } else return;
+    if (/^[0-9]$/.test(key)) calc.insertar(key);
+    else if (DIRECTAS[bajo] !== undefined) calc.insertar(DIRECTAS[bajo]);
+    else if (LETRAS[bajo] !== undefined) calc.insertar(LETRAS[bajo]);
+    else if (key === "Enter" || key === "=") { evento.preventDefault(); calc.igual(); }
+    else if (key === "Backspace") { evento.preventDefault(); calc.borrar(); }
+    else if (key === "Escape" || key === "Delete") calc.limpiarTodo();
+    else if (key === "ArrowLeft") { evento.preventDefault(); calc.mover(-1); }
+    else if (key === "ArrowRight") { evento.preventDefault(); calc.mover(1); }
+    else if (key === "ArrowUp") { evento.preventDefault(); calc.recorrerHistorial(1); }
+    else if (key === "ArrowDown") { evento.preventDefault(); calc.recorrerHistorial(-1); }
+    else if (key === "d") calc.alternarAngulo();
+    else return;
 
     render();
   });
