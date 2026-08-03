@@ -62,10 +62,11 @@ function elegirOperador(op) {
   if (anterior !== null && operador && !reiniciarActual) {
     resolver();
     if (actual === "Error") return;
-  } else {
-    anterior = Number(actual);
   }
 
+  // Siempre después de resolver: resolver() deja anterior en null y el
+  // resultado acumulado debe volver a ser el operando izquierdo.
+  anterior = Number(actual);
   operador = op;
   reiniciarActual = true;
 }
