@@ -1,0 +1,22 @@
+name: Pruebas
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pruebas:
+    name: Núcleo e interfaz
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Comprobar que hay Chrome
+        run: google-chrome --version
+
+      - name: Ejecutar las suites
+        run: bash pruebas/ejecutar.sh

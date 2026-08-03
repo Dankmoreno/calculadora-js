@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pruebas de interfaz</title>
+  <link rel="stylesheet" href="estilo-pruebas.css">
+</head>
+<body>
+  <h1>Pruebas de interfaz</h1>
+  <p class="nota">
+    Cargan <code>index.html</code> en un iframe y lo manejan como lo haría una persona:
+    pulsando teclas y leyendo la pantalla. Comprueban además accesibilidad, contraste
+    real y maquetación. <strong>Requieren un servidor</strong> (el navegador bloquea el
+    acceso entre archivos <code>file://</code>): desde la raíz del proyecto, cualquier
+    servidor estático sirve, p. ej. <code>python -m http.server</code>, y luego abre
+    <code>/pruebas/interfaz.html</code>.
+  </p>
+  <pre id="salida">ejecutando…</pre>
+
+  <iframe class="marco-app" id="app" src="../index.html" width="440" height="900"></iframe>
+  <iframe class="marco-app vp" data-w="320" src="../index.html" width="320" height="900"></iframe>
+  <iframe class="marco-app vp" data-w="360" src="../index.html" width="360" height="900"></iframe>
+  <iframe class="marco-app vp" data-w="414" src="../index.html" width="414" height="900"></iframe>
+
+  <script src="marco.js"></script>
+  <script>
+    const P = window.Pruebas;
+
+    window.addEventListener("load", () => {
+      const marco = document.getElementById("app");
+      let d, w;
+      try {
+        d = marco.contentDocument;
+        w = marco.contentWindow;
+      } catch (e) {
+        d = null;
+      }
+
+      if (!d) {
+        P.afirmar("acceso al iframe", false,
+          "bloqueado por el navegador: sirve el proyecto por http en vez de abrirlo como archivo");
+        P.publicar();
+        return;
+      }
+
+      const pantalla = () => d.getElementById("actual").textContent;
+      const contexto = () => d.getElementById("contexto").textContent;
+
+      const buscar = (sel) => {
+        const el = d.querySelector(sel);
+        if (!el) throw new Error("no existe " + sel);
+        return el;
+      };
+      const num = (n) => buscar(`[data-numero="${n}"]`).click();
+      const op = (o) => buscar(`[data-operador="${o}"]`).click();
+      const fn = (f) => buscar(`[data-funcion="${f}"]`).click();
+      const cte = (k) => buscar(`[data-constante="${k}"]`).click();
+      const mem = (m) => buscar(`[data-memoria="${m}"]`).click();
+      const acc = (a) => buscar(`[data-accion="${a}"]`).click();
+      const escribir = (t) => String(t).split("").forEach((ch) => (ch === "," ? acc("punto") : num(ch)));
+      const teclear = (key) =>
+        d.dispatchEvent(new w.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+
+      function caso(nombre, pasos, esperado, leer) {
+        acc("limpiar");
+        let obtenido;
+        try { pasos(); obtenido = (leer || pantalla)(); }
+        catch (e) { obtenido = "EXCEPCIÓN: " + e.message; }
+        P.comparar(nombre, obtenido, esperado);
+      }
+
+      P.seccion("CARGA");
+      P.afirmar("el núcleo se expone", typeof w.Calculadora === "object", "window.Calculadora ausente");
+      P.afirmar("la interfaz arrancó", pantalla() === "0", "pantalla inicial: " + pantalla());
+
+      P.seccion("PULSANDO TECLAS");
+      caso("7 × 8 =", () => { num("7"); op("*"); num("8"); acc("igual"); }, "56");
+      caso("2 + 3 + 4 = encadenado", () => {
+        num("2"); op("+"); num("3"); op("+"); num("4"); acc("igual");
+      }, "9");
+      caso("0,1 + 0,2 =", () => { escribir("0,1"); op("+"); escribir("0,2"); acc("igual"); }, "0,3");
+      caso("5 ÷ 0 =", () => { num("5"); op("/"); num("0"); acc("igual"); }, "Error");
+      caso("2 ^ 10 =", () => { num("2"); op("^"); escribir("10"); acc("igual"); }, "1024");
+      caso("√81", () => { escribir("81"); fn("raiz"); }, "9");
+      caso("5!", () => { num("5"); fn("factorial"); }, "120");
+      caso("1/4", () => { num("4"); fn("inverso"); }, "0,25");
+      caso("π", () => cte("pi"), "3,14159265359");
+      caso("±", () => { num("7"); acc("signo"); }, "-7");
+      caso("100 + 10 % =", () => {
+        escribir("100"); op("+"); escribir("10"); acc("porcentaje"); acc("igual");
+      }, "110");
+      caso("entrada de 18 dígitos no se reescribe", () => escribir("123456789012345678"), "1234567890123456");
+      caso("contexto tras operador", () => { escribir("12"); op("+"); }, "12 +", contexto);
+
+      P.seccion("TECLADO");
+      caso("dígitos y Enter", () => { teclear("7"); teclear("*"); teclear("8"); teclear("Enter"); }, "56");
+      caso("coma", () => { teclear("1"); teclear(","); teclear("5"); }, "1,5");
+      caso("Escape limpia", () => { teclear("9"); teclear("9"); teclear("Escape"); }, "0");
+      caso("Backspace borra", () => { teclear("1"); teclear("2"); teclear("3"); teclear("Backspace"); }, "12");
+      caso("p inserta π", () => teclear("p"), "3,14159265359");
+      caso("f calcula el factorial", () => { teclear("5"); teclear("f"); }, "120");
+      caso("^ eleva a potencia", () => { teclear("2"); teclear("^"); teclear("8"); teclear("Enter"); }, "256");
+      caso("Ctrl+tecla se ignora", () => {
+        teclear("5");
+        d.dispatchEvent(new w.KeyboardEvent("keydown", { key: "c", ctrlKey: true, bubbles: true }));
+      }, "5");
+
+      P.seccion("MEMORIA E INDICADORES");
+      acc("limpiar");
+      P.afirmar("el indicador M empieza oculto", d.getElementById("indicador-memoria").hidden === true,
+                "visible sin memoria");
+      escribir("12"); mem("sumar");
+      P.afirmar("el indicador M aparece al guardar", d.getElementById("indicador-memoria").hidden === false,
+                "sigue oculto");
+      acc("limpiar"); mem("recuperar");
+      P.comparar("MR recupera el valor", pantalla(), "12");
+      mem("limpiar");
+      P.afirmar("MC oculta el indicador", d.getElementById("indicador-memoria").hidden === true,
+                "sigue visible");
+
+      P.comparar("el ángulo empieza en RAD", d.getElementById("indicador-angulo").textContent, "RAD");
+      acc("angulo");
+      P.comparar("el interruptor pasa a DEG", d.getElementById("indicador-angulo").textContent, "DEG");
+      acc("limpiar"); escribir("30"); fn("sin");
+      P.comparar("sen(30°) con el interruptor en DEG", pantalla(), "0,5");
+      acc("angulo");
+
+      P.seccion("HISTORIAL EN PANTALLA");
+      acc("limpiar-historial");
+      P.afirmar("arranca vacío con su mensaje",
+        d.querySelector(".historial__vacio") !== null, "no se pintó el estado vacío");
+      acc("limpiar"); num("7"); op("*"); num("8"); acc("igual");
+      acc("limpiar"); escribir("10"); op("-"); num("4"); acc("igual");
+      const filas = d.querySelectorAll(".historial__fila");
+      P.comparar("pinta dos filas", String(filas.length), "2");
+      P.comparar("la más reciente va primero",
+        filas[0].querySelector(".historial__expresion").textContent, "10 − 4");
+      P.afirmar("cada fila tiene nombre accesible",
+        [...filas].every((f) => (f.getAttribute("aria-label") || "").length > 0), "falta aria-label");
+      filas[1].click();
+      P.comparar("pulsar una fila reutiliza su resultado", pantalla(), "56");
+      acc("limpiar-historial");
+      P.afirmar("el botón Limpiar lo vacía",
+        d.querySelector(".historial__vacio") !== null, "siguen las filas");
+
+      P.seccion("ACCESIBILIDAD");
+      const salida = d.getElementById("actual");
+      P.comparar("la pantalla es un <output>", salida.tagName.toLowerCase(), "output");
+      P.comparar("con aria-live", salida.getAttribute("aria-live"), "polite");
+      P.comparar("con role=status", salida.getAttribute("role"), "status");
+      P.comparar("el documento declara idioma", d.documentElement.lang, "es");
+      P.afirmar("la decoración está oculta a lectores",
+        d.querySelector(".cosmos").getAttribute("aria-hidden") === "true", "falta aria-hidden");
+      const sinNombre = [...d.querySelectorAll("button")]
+        .filter((b) => !b.getAttribute("aria-label") && !/^[0-9]+$/.test(b.textContent.trim()))
+        .map((b) => b.textContent.trim() || "(sin texto)");
+      P.afirmar("todo botón no numérico tiene nombre accesible",
+        sinNombre.length === 0, "sin nombre: " + sinNombre.join(" · "));
+      P.afirmar("hay un encabezado principal", d.querySelector("h1") !== null, "falta h1");
+
+      P.seccion("CONTRASTE WCAG AA (colores realmente renderizados)");
+      const canal = (s) => s.match(/[\d.]+/g).slice(0, 3).map(Number);
+      const lum = (rgb) => {
+        const v = rgb.map((c) => c / 255)
+          .map((c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)));
+        return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+      };
+      const ratio = (fg, bg) => {
+        const [a, b] = [lum(fg), lum(bg)].sort((x, y) => y - x);
+        return (a + 0.05) / (b + 0.05);
+      };
+      const fondoPanel = canal("rgb(20, 17, 58)"); // color base de --panel
+
+      const conFondoPropio = [
+        ["dígitos", '[data-numero="7"]'],
+        ["acción (AC)", '[data-accion="limpiar"]'],
+        ["científica (sin)", '[data-funcion="sin"]'],
+        ["memoria (M+)", '[data-memoria="sumar"]'],
+        ["operador (+)", '[data-operador="+"]'],
+        ["igual", '[data-accion="igual"]'],
+        ["fila de historial", ".historial__fila, .historial__vacio"],
+      ];
+      conFondoPropio.forEach(([nombre, sel]) => {
+        const el = d.querySelector(sel);
+        if (!el) { P.afirmar("contraste " + nombre, false, "elemento ausente: " + sel); return; }
+        const cs = getComputedStyle(el);
+        const fondo = cs.backgroundColor === "rgba(0, 0, 0, 0)" ? fondoPanel : canal(cs.backgroundColor);
+        const r = ratio(canal(cs.color), fondo);
+        P.afirmar(`contraste ${nombre}: ${r.toFixed(2)}:1`, r >= 4.5, "por debajo de 4,5:1");
+      });
+
+      [["contexto", "#contexto"], ["efemérides", ".efemerides"], ["pantalla", "#actual"],
+       ["título de historial", ".caja-historial__titulo"], ["enlace Limpiar", ".enlace"],
+       ["insignia de ángulo", "#indicador-angulo"]].forEach(([nombre, sel]) => {
+        const el = d.querySelector(sel);
+        const r = ratio(canal(getComputedStyle(el).color), fondoPanel);
+        P.afirmar(`contraste ${nombre}: ${r.toFixed(2)}:1`, r >= 4.5, "por debajo de 4,5:1");
+      });
+
+      P.seccion("MAQUETACIÓN EN VIEWPORTS REALES");
+      document.querySelectorAll(".vp").forEach((f) => {
+        const dd = f.contentDocument;
+        const de = dd.documentElement;
+        "123456789012345".split("").forEach((n) => dd.querySelector(`[data-numero="${n}"]`).click());
+        const desborda = de.scrollWidth > de.clientWidth;
+        P.afirmar(
+          `sin desbordamiento horizontal a ${f.dataset.w}px (panel ${dd.querySelector(".panel").offsetWidth}px)`,
+          !desborda,
+          `scrollWidth=${de.scrollWidth} > clientWidth=${de.clientWidth}`
+        );
+      });
+
+      P.publicar();
+    });
+  </script>
+</body>
+</html>

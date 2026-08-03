@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pruebas del núcleo</title>
+  <link rel="stylesheet" href="estilo-pruebas.css">
+</head>
+<body>
+  <h1>Pruebas del núcleo de cálculo</h1>
+  <p class="nota">
+    Prueban <code>src/calculadora.js</code> de forma aislada, sin DOM.
+    Puedes abrir este archivo directamente en el navegador.
+  </p>
+  <pre id="salida">ejecutando…</pre>
+
+  <script src="../src/calculadora.js"></script>
+  <script src="marco.js"></script>
+  <script>
+    const P = window.Pruebas;
+
+    // ---- utilidades ----
+    const nueva = () => window.Calculadora.crear();
+
+    function escribir(c, texto) {
+      for (const caracter of String(texto)) {
+        if (caracter === "," || caracter === ".") c.punto();
+        else if (caracter === "-") c.signo();
+        else c.digito(caracter);
+      }
+    }
+
+    // Devuelve lo que se vería en pantalla tras ejecutar los pasos.
+    function ver(pasos) {
+      const c = nueva();
+      pasos(c);
+      return c.estado().pantalla;
+    }
+
+    // Atajo para "a op b =".
+    function operacion(a, op, b) {
+      return ver((c) => { escribir(c, a); c.operador(op); escribir(c, b); c.igual(); });
+    }
+
+    // ---- aritmética ----
+    P.seccion("ARITMÉTICA BÁSICA");
+    P.comparar("7 × 8", operacion("7", "*", "8"), "56");
+    P.comparar("9 − 12 (negativo)", operacion("9", "-", "12"), "-3");
+    P.comparar("10 ÷ 4", operacion("10", "/", "4"), "2,5");
+    P.comparar("0,1 + 0,2 (ruido de coma flotante)", operacion("0,1", "+", "0,2"), "0,3");
+    P.comparar("1 ÷ 3", operacion("1", "/", "3"), "0,333333333333");
+    P.comparar("2 ^ 10", operacion("2", "^", "10"), "1024");
+    P.comparar("2 ^ 0,5", operacion("2", "^", "0,5"), "1,41421356237");
+
+    P.seccion("ENCADENADO");
+    P.comparar("2 + 3 + 4", ver((c) => {
+      escribir(c, "2"); c.operador("+"); escribir(c, "3");
+      c.operador("+"); escribir(c, "4"); c.igual();
+    }), "9");
+    P.comparar("2 + 3 × 4 (secuencial, sin precedencia)", ver((c) => {
+      escribir(c, "2"); c.operador("+"); escribir(c, "3");
+      c.operador("*"); escribir(c, "4"); c.igual();
+    }), "20");
+    P.comparar("cambiar de operador antes del 2º operando", ver((c) => {
+      escribir(c, "5"); c.operador("+"); c.operador("-"); escribir(c, "3"); c.igual();
+    }), "2");
+    P.comparar("= repetido no vuelve a operar", ver((c) => {
+      escribir(c, "2"); c.operador("+"); escribir(c, "3"); c.igual(); c.igual();
+    }), "5");
+
+    P.seccion("ERRORES");
+    P.comparar("5 ÷ 0", operacion("5", "/", "0"), "Error");
+    P.comparar("√ de un negativo", ver((c) => { escribir(c, "9"); c.signo(); c.funcion("raiz"); }), "Error");
+    P.comparar("ln de 0", ver((c) => { escribir(c, "0"); c.funcion("ln"); }), "Error");
+    P.comparar("log de un negativo", ver((c) => { escribir(c, "5"); c.signo(); c.funcion("log"); }), "Error");
+    P.comparar("1/x con x = 0", ver((c) => { escribir(c, "0"); c.funcion("inverso"); }), "Error");
+    P.comparar("factorial de un decimal", ver((c) => { escribir(c, "2,5"); c.funcion("factorial"); }), "Error");
+    P.comparar("factorial de un negativo", ver((c) => { escribir(c, "3"); c.signo(); c.funcion("factorial"); }), "Error");
+    P.comparar("171! desborda", ver((c) => { escribir(c, "171"); c.funcion("factorial"); }), "Error");
+    P.comparar("un dígito sale del estado de error", ver((c) => {
+      escribir(c, "5"); c.operador("/"); escribir(c, "0"); c.igual(); escribir(c, "7");
+    }), "7");
+    P.comparar("AC sale del estado de error", ver((c) => {
+      escribir(c, "5"); c.operador("/"); escribir(c, "0"); c.igual(); c.limpiar();
+    }), "0");
+    P.comparar("un operador no opera sobre un error", ver((c) => {
+      escribir(c, "5"); c.operador("/"); escribir(c, "0"); c.igual(); c.operador("+");
+    }), "Error");
+
+    P.seccion("PRECISIÓN: la entrada no se reescribe");
+    P.comparar("16 dígitos tecleados", ver((c) => escribir(c, "1234567890123456")), "1234567890123456");
+    P.comparar("tope de 16 dígitos", ver((c) => escribir(c, "11111111111111119999")), "1111111111111111");
+    P.comparar("13 decimales", ver((c) => escribir(c, "0,1234567890123")), "0,1234567890123");
+    P.comparar("número diminuto tecleado", ver((c) => escribir(c, "0,0000000000001")), "0,0000000000001");
+    P.comparar("1 ÷ 1e13 no se aplasta a cero", operacion("1", "/", "10000000000000"), "1e-13");
+
+    P.seccion("PRECISIÓN: sin fugas de Infinity");
+    // El tope de 16 dígitos impide teclear 1e300, así que se llega multiplicando.
+    const mil15 = "1000000000000000";
+    P.comparar("1e300 se muestra, no 'Infinity'", ver((c) => {
+      escribir(c, mil15);
+      for (let i = 0; i < 19; i++) { c.operador("*"); escribir(c, mil15); }
+      c.igual();
+    }), "1e+300");
+    P.comparar("al desbordar de verdad da Error", ver((c) => {
+      escribir(c, mil15);
+      for (let i = 0; i < 19; i++) { c.operador("*"); escribir(c, mil15); }
+      c.igual();
+      c.funcion("cuadrado");
+    }), "Error");
+
+    P.seccion("PORCENTAJE CONTEXTUAL");
+    P.comparar("100 + 10 % =", ver((c) => {
+      escribir(c, "100"); c.operador("+"); escribir(c, "10"); c.porcentaje(); c.igual();
+    }), "110");
+    P.comparar("200 − 25 % =", ver((c) => {
+      escribir(c, "200"); c.operador("-"); escribir(c, "25"); c.porcentaje(); c.igual();
+    }), "150");
+    P.comparar("200 × 10 % =", ver((c) => {
+      escribir(c, "200"); c.operador("*"); escribir(c, "10"); c.porcentaje(); c.igual();
+    }), "20");
+    P.comparar("50 % suelto", ver((c) => { escribir(c, "50"); c.porcentaje(); }), "0,5");
+
+    P.seccion("CONSTANTES Y FUNCIONES");
+    P.comparar("π", ver((c) => c.constante("pi")), "3,14159265359");
+    P.comparar("e", ver((c) => c.constante("e")), "2,71828182846");
+    P.comparar("√81", ver((c) => { escribir(c, "81"); c.funcion("raiz"); }), "9");
+    P.comparar("5²", ver((c) => { escribir(c, "5"); c.funcion("cuadrado"); }), "25");
+    P.comparar("1/4", ver((c) => { escribir(c, "4"); c.funcion("inverso"); }), "0,25");
+    P.comparar("5!", ver((c) => { escribir(c, "5"); c.funcion("factorial"); }), "120");
+    P.comparar("0! = 1", ver((c) => { escribir(c, "0"); c.funcion("factorial"); }), "1");
+    P.comparar("ln(e) = 1", ver((c) => { c.constante("e"); c.funcion("ln"); }), "1");
+    P.comparar("log(1000) = 3", ver((c) => { escribir(c, "1000"); c.funcion("log"); }), "3");
+    P.comparar("cambio de signo", ver((c) => { escribir(c, "7"); c.signo(); }), "-7");
+    P.comparar("doble cambio de signo", ver((c) => { escribir(c, "7"); c.signo(); c.signo(); }), "7");
+    P.comparar("2 + π =", ver((c) => {
+      escribir(c, "2"); c.operador("+"); c.constante("pi"); c.igual();
+    }), "5,14159265359");
+    P.comparar("2 + π + 1 = (una función no rompe el encadenado)", ver((c) => {
+      escribir(c, "2"); c.operador("+"); c.constante("pi");
+      c.operador("+"); escribir(c, "1"); c.igual();
+    }), "6,14159265359");
+    P.comparar("2 + 16 √ = (√ sobre el 2º operando)", ver((c) => {
+      escribir(c, "2"); c.operador("+"); escribir(c, "16"); c.funcion("raiz"); c.igual();
+    }), "6");
+    P.comparar("un dígito tras π reemplaza", ver((c) => { c.constante("pi"); escribir(c, "5"); }), "5");
+
+    P.seccion("TRIGONOMETRÍA");
+    P.comparar("modo por defecto", nueva().estado().angulo, "RAD");
+    P.comparar("sen(0) en radianes", ver((c) => { escribir(c, "0"); c.funcion("sin"); }), "0");
+    P.comparar("cos(0) en radianes", ver((c) => { escribir(c, "0"); c.funcion("cos"); }), "1");
+    // En radianes NO se limpia el ruido: un valor diminuto puede ser el
+    // resultado real, así que sen(π) debe dar un residuo, no un 0 inventado.
+    P.afirmar(
+      "sen(π) en radianes conserva el residuo, no lo aplasta a 0",
+      ver((c) => { c.constante("pi"); c.funcion("sin"); }) !== "0",
+      "devolvió 0"
+    );
+    P.comparar("sen(180°) en grados da 0 limpio", ver((c) => {
+      c.alternarAngulo(); escribir(c, "180"); c.funcion("sin");
+    }), "0");
+    P.comparar("sen(30°) = 0,5", ver((c) => {
+      c.alternarAngulo(); escribir(c, "30"); c.funcion("sin");
+    }), "0,5");
+    P.comparar("cos(60°) = 0,5", ver((c) => {
+      c.alternarAngulo(); escribir(c, "60"); c.funcion("cos");
+    }), "0,5");
+    P.comparar("tan(45°) = 1", ver((c) => {
+      c.alternarAngulo(); escribir(c, "45"); c.funcion("tan");
+    }), "1");
+    P.comparar("tan(90°) es asíntota → Error", ver((c) => {
+      c.alternarAngulo(); escribir(c, "90"); c.funcion("tan");
+    }), "Error");
+    P.comparar("tan(270°) → Error", ver((c) => {
+      c.alternarAngulo(); escribir(c, "270"); c.funcion("tan");
+    }), "Error");
+    (function () {
+      const c = nueva();
+      c.alternarAngulo();
+      P.comparar("el interruptor pasa a grados", c.estado().angulo, "DEG");
+      c.alternarAngulo();
+      P.comparar("y vuelve a radianes", c.estado().angulo, "RAD");
+    })();
+
+    P.seccion("MEMORIA");
+    P.comparar("M+ y MR", ver((c) => {
+      escribir(c, "12"); c.memoria("sumar"); c.limpiar(); c.memoria("recuperar");
+    }), "12");
+    P.comparar("M+ acumula", ver((c) => {
+      escribir(c, "10"); c.memoria("sumar");
+      c.limpiar(); escribir(c, "5"); c.memoria("sumar");
+      c.limpiar(); c.memoria("recuperar");
+    }), "15");
+    P.comparar("MC borra", ver((c) => {
+      escribir(c, "12"); c.memoria("sumar"); c.memoria("limpiar"); c.memoria("recuperar");
+    }), "0");
+    (function () {
+      const c = nueva();
+      P.afirmar("sin memoria no hay indicador", c.estado().tieneMemoria === false, "indicador activo de más");
+      escribir(c, "3"); c.memoria("sumar");
+      P.afirmar("con memoria aparece el indicador", c.estado().tieneMemoria === true, "indicador no aparece");
+    })();
+
+    P.seccion("HISTORIAL");
+    (function () {
+      const c = nueva();
+      escribir(c, "7"); c.operador("*"); escribir(c, "8"); c.igual();
+      escribir(c, "10"); c.operador("-"); escribir(c, "4"); c.igual();
+      const h = c.estado().historial;
+      P.comparar("guarda dos operaciones", String(h.length), "2");
+      P.comparar("la más reciente va primero", h[0].expresion, "10 − 4");
+      P.comparar("guarda el resultado", h[0].resultado, "6");
+      P.comparar("conserva la anterior", h[1].expresion, "7 × 8");
+
+      c.usarDelHistorial(1);
+      P.comparar("reutilizar una fila carga su resultado", c.estado().pantalla, "56");
+
+      c.limpiarHistorial();
+      P.comparar("se puede vaciar", String(c.estado().historial.length), "0");
+    })();
+    (function () {
+      const c = nueva();
+      escribir(c, "1"); c.operador("+"); escribir(c, "1"); c.igual();
+      c.funcion("cuadrado");
+      P.comparar("una función suelta no entra al historial",
+        String(c.estado().historial.length), "1");
+    })();
+
+    P.seccion("ESTADO EXPUESTO");
+    (function () {
+      const c = nueva();
+      escribir(c, "12"); c.operador("+");
+      P.comparar("contexto tras pulsar operador", c.estado().contexto, "12 +");
+      escribir(c, "3"); c.igual();
+      P.comparar("contexto vacío tras =", c.estado().contexto, "");
+      P.afirmar("bandera de error apagada", c.estado().error === false, "error activo de más");
+    })();
+
+    P.publicar();
+  </script>
+</body>
+</html>
