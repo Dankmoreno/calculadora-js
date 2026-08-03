@@ -3,41 +3,86 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Calculadora</title>
+  <meta name="color-scheme" content="dark">
+  <title>Astrolabio — calculadora sideral</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- Capa puramente decorativa: campo estelar, orbitas, zodiaco y formulas. -->
+  <div class="cosmos" aria-hidden="true">
+    <div class="cosmos__estrellas"></div>
+    <div class="cosmos__estrellas cosmos__estrellas--lento"></div>
+    <div class="cosmos__nebulosa"></div>
+
+    <div class="orbita orbita--1"></div>
+    <div class="orbita orbita--2"></div>
+    <div class="orbita orbita--3"><span class="planeta"></span></div>
+
+    <div class="zodiaco">
+      <span style="--i:0">♈</span><span style="--i:1">♉</span><span style="--i:2">♊</span>
+      <span style="--i:3">♋</span><span style="--i:4">♌</span><span style="--i:5">♍</span>
+      <span style="--i:6">♎</span><span style="--i:7">♏</span><span style="--i:8">♐</span>
+      <span style="--i:9">♑</span><span style="--i:10">♒</span><span style="--i:11">♓</span>
+    </div>
+
+    <p class="flotante flotante--1">e<sup>iπ</sup> + 1 = 0</p>
+    <p class="flotante flotante--2">T² = 4π²a³ / GM</p>
+    <p class="flotante flotante--3">φ = (1 + √5) / 2</p>
+    <p class="flotante flotante--4">∮ E · dA = Q / ε₀</p>
+    <p class="flotante flotante--5">Δx · Δp ≥ ħ / 2</p>
+    <p class="flotante flotante--6">c = 299 792 458 m/s</p>
+  </div>
+
   <main class="calculadora">
+    <header class="cartela">
+      <span class="cartela__sello">✦</span>
+      <div>
+        <h1 class="cartela__titulo">Astrolabio</h1>
+        <p class="cartela__sub">calculadora sideral</p>
+      </div>
+    </header>
+
     <div class="pantalla">
       <div class="pantalla__historial" id="historial"></div>
-      <div class="pantalla__actual" id="actual">0</div>
+      <output class="pantalla__actual" id="actual" role="status" aria-live="polite" aria-atomic="true">0</output>
     </div>
 
     <div class="teclado">
-      <button class="tecla tecla--accion" data-accion="limpiar">AC</button>
-      <button class="tecla tecla--accion" data-accion="borrar">⌫</button>
-      <button class="tecla tecla--accion" data-accion="porcentaje">%</button>
-      <button class="tecla tecla--operador" data-operador="/">÷</button>
+      <button class="tecla tecla--accion" data-accion="limpiar" aria-label="Limpiar todo">AC</button>
+      <button class="tecla tecla--accion" data-accion="borrar" aria-label="Borrar el último dígito">⌫</button>
+      <button class="tecla tecla--accion" data-accion="porcentaje" aria-label="Porcentaje">%</button>
+      <button class="tecla tecla--ciencia" data-accion="pi" aria-label="Constante pi">π</button>
+      <button class="tecla tecla--operador" data-operador="/" aria-label="Dividir">÷</button>
 
+      <button class="tecla tecla--ciencia" data-accion="raiz" aria-label="Raíz cuadrada">√</button>
       <button class="tecla" data-numero="7">7</button>
       <button class="tecla" data-numero="8">8</button>
       <button class="tecla" data-numero="9">9</button>
-      <button class="tecla tecla--operador" data-operador="*">×</button>
+      <button class="tecla tecla--operador" data-operador="*" aria-label="Multiplicar">×</button>
 
+      <button class="tecla tecla--ciencia" data-accion="cuadrado" aria-label="Elevar al cuadrado">x²</button>
       <button class="tecla" data-numero="4">4</button>
       <button class="tecla" data-numero="5">5</button>
       <button class="tecla" data-numero="6">6</button>
-      <button class="tecla tecla--operador" data-operador="-">−</button>
+      <button class="tecla tecla--operador" data-operador="-" aria-label="Restar">−</button>
 
+      <button class="tecla tecla--ciencia" data-accion="euler" aria-label="Constante e de Euler">e</button>
       <button class="tecla" data-numero="1">1</button>
       <button class="tecla" data-numero="2">2</button>
       <button class="tecla" data-numero="3">3</button>
-      <button class="tecla tecla--operador" data-operador="+">+</button>
+      <button class="tecla tecla--operador" data-operador="+" aria-label="Sumar">+</button>
 
-      <button class="tecla tecla--cero" data-numero="0">0</button>
-      <button class="tecla" data-numero=".">,</button>
-      <button class="tecla tecla--igual" data-accion="igual">=</button>
+      <button class="tecla tecla--ciencia" data-accion="signo" aria-label="Cambiar de signo">±</button>
+      <button class="tecla" data-numero="0">0</button>
+      <button class="tecla" data-numero="." aria-label="Coma decimal">,</button>
+      <button class="tecla tecla--igual" data-accion="igual" aria-label="Calcular el resultado">=</button>
     </div>
+
+    <footer class="efemerides">
+      <span>π = 3,14159265359</span>
+      <span>e = 2,71828182846</span>
+      <span>φ = 1,61803398875</span>
+    </footer>
   </main>
 
   <script src="script.js"></script>
