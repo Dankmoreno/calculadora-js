@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculadora</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="calculadora">
+    <div class="pantalla">
+      <div class="pantalla__historial" id="historial"></div>
+      <div class="pantalla__actual" id="actual">0</div>
+    </div>
+
+    <div class="teclado">
+      <button class="tecla tecla--accion" data-accion="limpiar">AC</button>
+      <button class="tecla tecla--accion" data-accion="borrar">⌫</button>
+      <button class="tecla tecla--accion" data-accion="porcentaje">%</button>
+      <button class="tecla tecla--operador" data-operador="/">÷</button>
+
+      <button class="tecla" data-numero="7">7</button>
+      <button class="tecla" data-numero="8">8</button>
+      <button class="tecla" data-numero="9">9</button>
+      <button class="tecla tecla--operador" data-operador="*">×</button>
+
+      <button class="tecla" data-numero="4">4</button>
+      <button class="tecla" data-numero="5">5</button>
+      <button class="tecla" data-numero="6">6</button>
+      <button class="tecla tecla--operador" data-operador="-">−</button>
+
+      <button class="tecla" data-numero="1">1</button>
+      <button class="tecla" data-numero="2">2</button>
+      <button class="tecla" data-numero="3">3</button>
+      <button class="tecla tecla--operador" data-operador="+">+</button>
+
+      <button class="tecla tecla--cero" data-numero="0">0</button>
+      <button class="tecla" data-numero=".">,</button>
+      <button class="tecla tecla--igual" data-accion="igual">=</button>
+    </div>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
